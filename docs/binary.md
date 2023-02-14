@@ -48,6 +48,7 @@ This document is based on:
 	- [Color3uint8](#color3uint8)
 	- [Int64](#int64)
 	- [SharedString](#sharedstring)
+	- [Bytecode](#bytecode)
 	- [OptionalCoordinateFrame](#optionalcoordinateframe)
 	- [UniqueId](#uniqueid)
 - [Data Storage Notes](#data-storage-notes)
@@ -612,6 +613,11 @@ When an array of `Int64` values is present, the bytes of the integers are subjec
 **Type ID `0x1c`**
 
 `SharedString` values are stored as an [Interleaved Array](#byte-interleaving) of `u32` values that represent indices in the [`SSTR`](#sstr-chunk) string array.
+
+### Bytecode
+**Type ID `0x1d`**
+
+`Bytecode` values are stored as a sequence of [`String`](#string) values whose contents are the literal [Luau](https://github.com/Roblox/luau) bytecode.
 
 ### OptionalCoordinateFrame
 **Type ID `0x1e`**
