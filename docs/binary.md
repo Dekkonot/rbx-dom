@@ -3,12 +3,7 @@ This is unofficial documentation for Roblox's binary model format. The binary mo
 
 The binary model format intended to supersede Roblox's older [XML model format](xml.md).
 
-This document is based on:
-- [*ROBLOX File Format* by Gregory Comer](http://www.classy-studios.com/Downloads/RobloxFileSpec.pdf)
-- [LibRbxl by Gregory Comer](https://github.com/GregoryComer/LibRbxl)
-- [rbxfile by Anaminus](https://github.com/RobloxAPI/rbxfile)
-- [Roblox-File-Format by CloneTrooper1019](https://github.com/CloneTrooper1019/Roblox-File-Format)
-- Observing `rbxm` and `rbxl` output from Roblox Studio
+This document is built upon existing and prior work by others. These people are [acknowledged at the end of the document](#acknowledgement).
 
 ## Contents
 - [Document Conventions](#document-conventions)
@@ -56,6 +51,7 @@ This document is based on:
 	- [Integer Transformations](#integer-transformations)
 	- [Byte Interleaving](#byte-interleaving)
 	- [Roblox Float Format](#roblox-float-format)
+- [Acknowledgement](#acknowledgement)
 
 ## Document Conventions
 This document assumes a basic understanding of Rust's conventions for numeric types. For example:
@@ -730,3 +726,12 @@ As a practical example, below is a comparison of how `-0.15625` is stored:
 |:---------|:--------------------------------------|:--------------|
 | Standard | `10111110 00100000 00000000 00000000` | `be 20 00 00` |
 | Roblox   | `01111100 01000000 00000000 00000001` | `7c 40 00 01` |
+
+## Acknowledgement
+
+This document is based on the prior work of the following individuals and projects:
+
+- [*ROBLOX File Format* by Gregory Comer](http://www.classy-studios.com/Downloads/RobloxFileSpec.pdf)
+- [LibRbxl by Gregory Comer](https://github.com/GregoryComer/LibRbxl)
+- [rbxfile by Anaminus](https://github.com/RobloxAPI/rbxfile)
+- [Roblox-File-Format by CloneTrooper1019](https://github.com/CloneTrooper1019/Roblox-File-Format)
