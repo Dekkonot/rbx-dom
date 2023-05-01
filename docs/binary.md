@@ -5,6 +5,8 @@ The binary model format intended to supersede Roblox's older [XML model format](
 
 This document is built upon existing and prior work by others. These people are [acknowledged at the end of the document](#acknowledgement).
 
+> The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
+
 ## Contents
 - [Document Conventions](#document-conventions)
 - [File Structure](#file-structure)
