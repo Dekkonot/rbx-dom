@@ -56,26 +56,30 @@ This document is built upon existing and prior work by others. These people are 
 - [Acknowledgement](#acknowledgement)
 
 ## Document Conventions
-This document assumes a basic understanding of Rust's conventions for numeric types. For example:
+This document utilizes Rust's convention for number types. Familiarity is helpful, but they are utilized because of the ease in understanding them. As a quick synopsis:
 
 - `u16` is an unsigned 16-bit integer
 - `i32` is a signed 32-bit integer
+- `f32` is a 32-bit floating point number
 
-Integers are assumed to be little endian and 2's complement unless otherwise specified. The presence of big endian integers and integers with interesting transformations are explicitly noted.
+The [endianness](https://en.wikipedia.org/wiki/Endianness) of integers is inconsistent and will be explicitly noted when it is relevant. Additionally, there are a few notable transformations that may be applied to data types. They are explicitly noted when they are relevant.
 
 The data contained in a chunk may be compressed. The term "chunk data" refers to the decompressed contents.
 
 ## File Structure
-Binary model files consist of a short header, followed by a series of chunks. Each chunk has the same framing, enabling consumers to partialy decode a file.
 
-1. File Header
-2. Chunks
-	1. Zero or one `META` chunks
-	2. Zero or one `SSTR` chunks
-	3. Zero or more `INST` chunk
-	4. Zero or more `PROP` chunks
-	5. One `PRNT` chunk
-	6. One `END` chunk
+Roblox binary files consist of a short header, followed by a series of chunks. A file ends when an `END` chunk is encountered.
+
+The layout of file is roughly as follows:
+- File Header
+- Zero or one `META` chunk
+- Zero or one `SSTR` chunk
+- Zero or more `INST` chunks
+- Zero or more `PROP` chunks
+- One `PRNT` chunk
+- One `END` chunk
+
+It is RECOMMENDED that encoders write chunks in the order above for compatibility, but it is not required. The exact requirement for a chunk's position is noted in that chunk's documentation.
 
 ## File Header
 Every file starts with a 32 byte header.
