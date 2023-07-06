@@ -1,4 +1,12 @@
 local CollectionService = game:GetService("CollectionService")
+local InsertService = game:GetService("InsertService")
+
+--- Contains a map of instances to their assigned MeshId,
+--- since we can't read it.
+local meshIdMap = {}
+--- We have to make a new MeshPart everytime we want to apply a new value
+--- to 'MeshPart.MeshId', which could get expensive. So, we cache them here.
+local meshIdCache = {}
 
 -- Defines how to read and write properties that aren't directly scriptable.
 --
@@ -68,6 +76,42 @@ return {
 			end,
 			write = function(instance, _, value)
 				return true, instance:ScaleTo(value)
+			end,
+		},
+	},
+	MeshPart = {
+		MeshId = {
+			read = function(instance, _)
+				return true, meshIdMap[instance]
+			end,
+			write = function(instance, _, value)
+				local fetched, mesh = pcall(function()
+					local meshPart = meshIdCache[value]
+					if meshPart == nil then
+						-- In a vacuum, this could cause a data race.
+						-- In practice, it can only happen if creating a
+						-- MeshPart takes so long a second request finishes
+						-- first, which in turn assumes Roblox doesn't order
+						-- these requests internally.
+						meshPart = InsertService:CreateMeshPartAsync(
+							value,
+							Enum.CollisionFidelity.Default,
+							Enum.RenderFidelity.Automatic
+						)
+						meshIdCache[value] = meshPart
+					end
+					return meshPart
+				end)
+				if not fetched then
+					return false
+				else
+					meshIdMap[instance] = value
+					local cFidelity, rFidelity = instance.CollisionFidelity, instance.RenderFidelity
+					instance:ApplyMesh(mesh)
+					instance.CollisionFidelity = cFidelity
+					instance.RenderFidelity = rFidelity
+					return true
+				end
 			end,
 		},
 	},
