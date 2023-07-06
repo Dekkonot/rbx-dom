@@ -37,3 +37,9 @@ Change:
         As: shape
     shape:
       AliasFor: Shape
+
+  MeshPart:
+    MeshId:
+      Scriptability: Custom
+    MeshID:
+      AliasFor: MeshId
