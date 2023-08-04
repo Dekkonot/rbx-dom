@@ -152,14 +152,17 @@ The `SSTR` chunk has this layout:
 
 A shared string entry looks like this:
 
-| Field Name    | Format              | Value                                                                   |
-|:--------------|:--------------------|:------------------------------------------------------------------------|
-| MD5 Hash      | 16 bytes            | An [MD5](https://en.wikipedia.org/wiki/MD5) hash of the `Shared String` |
-| Shared String | [`String`](#string) | The string that's used by a later `PROP` chunk                          |
+| Field Name    | Format              | Value                                          |
+|:--------------|:--------------------|:-----------------------------------------------|
+| Hash          | 16 bytes            | A hash of the `Shared String`                  |
+| Shared String | [`String`](#string) | The string that's used by a later `PROP` chunk |
 
-The Shared String chunk (`SSTR`) is an array of strings. It's used to reduce the overall size of a file by allowing large strings to be reused in [`PROP`](#prop-chunk) chunks. The `MD5 Hash` isn't used by Roblox Studio when loading the file.
+The **Hash** field has historically been the [MD5][MD5] hash of **Shared String**. However, it should not be relied upon because it is not utilized by Roblox Studio at all.
 
+The Shared String chunk (`SSTR`) is an array of strings. It's used to reduce the overall size of a file by allowing large strings to be reused in [`PROP`](#prop-chunk) chunks.
 There should be zero or one `SSTR` chunks.
+
+[MD5]: https://en.wikipedia.org/wiki/MD5
 
 ### `INST` Chunk
 The `INST` chunk has this layout:
