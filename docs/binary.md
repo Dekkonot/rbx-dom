@@ -169,21 +169,20 @@ The `INST` chunk has this layout:
 |:----------------|:-------------------------------|:-----------------------------------------------------------------------|
 | Class ID        | `u32`                          | An arbitrarily-chosen ID referring to a Roblox class                   |
 | Class Name      | [`String`](#string)            | The class name, like `Folder` or `Part`                                |
-| Object Format   | `u8`                           | `1` if the class is a service, otherwise `0`                           |
+| Chunk Format    | `u8`                           | `1` if the class is a service, otherwise `0`                           |
 | Instance Count  | `u32`                          | The number of instances belonging to the class                         |
 | Referents       | Array([`Referent`](#referent)) | The referents of instances belonging to the class                      |
-| Service Markers | Array(`u8`)                    | `1` for each instance if the class is a service, otherwise not present |
 
 There should be one `INST` chunk for each type of instance defined.
 
-There are two forms of the `INST` chunk determined by the **Object Format** field:
+There are two forms of the `INST`, determined by the value of the **Chunk Format** form. These values are:
 
-- `0`: regular
-- `1`: service
+- `00`: regular
+- `01`: rooted
 
-If the **Object Format** is **regular**, the service markers section will not be present.
+If the **Object Format** is **regular**, the chunk is formatted is as described above.
 
-If the **Object Format** is **service**, the service markers section contains `1` repeated for the number of instances of that type in the file. If this field is not set, Roblox may create duplicate copies of services, like in [rojo-rbx/rbx-dom#11](https://github.com/rojo-rbx/rbx-dom/issues/11).
+If the **Object Format** is **rooted**, the chunk contains an additional array of `u8`s at the end that is **Instance Count** elements long. For every element in this array, the value is `01` if the corresponding entry in **Referents** is parented to the root of the file. Otherwise, it is `00`. In practice, this format is not often necessary. However, it should be set when the class represented by a chunk is a Roblox service. Otherwise, Roblox may create duplicates of services as in [rojo-rbx/rbx-dom#11](https://github.com/rojo-rbx/rbx-dom/issues/11).
 
 **Class ID** must be unique and ideally sorted monotonically among all `INST` chunks. It's used later in the file to refer to this type.
 
