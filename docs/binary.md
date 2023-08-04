@@ -68,7 +68,7 @@ Integers are assumed to be little endian and 2's complement unless otherwise spe
 The data contained in a chunk may be compressed. The term "chunk data" refers to the decompressed contents.
 
 ## File Structure
-Binary model files consist of a short header, followed by a series of chunks. Each chunk has the same framing, enabling consumers to partialy decode a file.
+Binary model files consist of a short header, followed by a series of chunks. Each chunk has the same framing, enabling consumers to partially decode a file.
 
 1. File Header
 2. Chunks
@@ -656,7 +656,7 @@ An `OptionalCoordinateFrame` with value `CFrame.new(0, 0, 1, 0, -1, 0, 1, 0, 0, 
 |:-----------|:-------|:---------------------------------------------------------------------------------------|
 | Index      | `u32`  | A sequential value that's incremented when a new `UniqueId` is generated               |
 | Time       | `u32`  | The number of seconds since 01-01-2021                                                 |
-| Random     | `i64`  | A psuedo-random number that's generated semiregularly when initializing a `UniqueId`   |
+| Random     | `i64`  | A pseudo-random number that's generated semiregularly when initializing a `UniqueId`   |
 
 This struct is stored in the order as written above with no modifications in the binary format.
 
@@ -683,7 +683,7 @@ The `CachedFaceId` field is always present, but is allowed to be an empty string
 ## Data Storage Notes
 
 ### Integer Transformations
-Some integers may be subject to a transformation to make them more compressable.
+Some integers may be subject to a transformation to make them more compressible.
 
 To transform an integer: if `x` greater than or equal to zero, transform it with `2 * x`. Otherwise, use `2 * |x| - 1`. In most compilers this is equivalent to `(x << 1) ^ (x >> 31)` for 32-bit integers. For 64-bit integers, the same format is used but with `63` instead of `31`.
 
