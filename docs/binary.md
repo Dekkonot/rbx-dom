@@ -138,8 +138,7 @@ The Metadata chunk (`META`) is a map of strings to strings. It represents metada
 
 There should be zero or one `META` chunks.
 
-Observed metadata entries and their values:
-
+The following metadata entries have been observed, with the corresponding values:
 - `ExplicitAutoJoints`: `true` or `false`
 
 ### `SSTR` Chunk
