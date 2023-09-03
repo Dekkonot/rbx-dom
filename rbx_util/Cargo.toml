@@ -7,7 +7,7 @@ documentation = "https://docs.rs/rbx_util"
 homepage = "https://github.com/rojo-rbx/rbx-dom"
 repository = "https://github.com/rojo-rbx/rbx-dom.git"
 authors = ["Lucien Greathouse <me@lpghatguy.com>"]
-edition = "2018"
+edition = "2021"
 readme = "README.md"
 
 # This tool is not even close to ready for primetime!
@@ -26,3 +26,7 @@ rbx_binary = { path = "../rbx_binary", features = ["unstable_text_format"] }
 rbx_xml = { path = "../rbx_xml" }
 serde_yaml = "0.8.24"
 structopt = "0.3.26"
+
+lz4_flex = "0.11.1"
+zstd = "0.12.4"
+serde = "1.0.188"

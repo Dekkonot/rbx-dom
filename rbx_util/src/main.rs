@@ -1,3 +1,5 @@
+mod binary_parser;
+
 use std::io::{self, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process;
@@ -19,6 +21,16 @@ enum Subcommand {
 
     /// View a binary file as an undefined text representation.
     ViewBinary { input: PathBuf },
+
+    /// Parses a binary file into chunks and dumps information about them
+    /// into either stdout or `output` if it is provided.
+    ///
+    /// This command does no additional parsing of chunks to remain agnostic
+    /// of unknown features. Instead, it emits raw binary data.
+    DumpBinary {
+        input: PathBuf,
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,6 +57,7 @@ fn run(options: Options) -> anyhow::Result<()> {
     match options.subcommand {
         Subcommand::Convert { input, output } => convert(&input, &output)?,
         Subcommand::ViewBinary { input } => view_binary(&input)?,
+        Subcommand::DumpBinary { input, output } => dump_binary(&input, output.as_ref())?,
     }
 
     Ok(())
@@ -105,6 +118,31 @@ fn view_binary(input_path: &Path) -> anyhow::Result<()> {
     let stdout = io::stdout();
     let output = BufWriter::new(stdout.lock());
     serde_yaml::to_writer(output, &model)?;
+
+    Ok(())
+}
+
+fn dump_binary(input_path: &Path, output_path: Option<&PathBuf>) -> anyhow::Result<()> {
+    let input_kind = ModelKind::from_path(input_path)?;
+
+    if input_kind != ModelKind::Binary {
+        bail!("not a binary model or place file: {}", input_path.display());
+    }
+
+    let mut input_file = BufReader::new(File::open(input_path)?);
+    let file = binary_parser::parse_file(&mut input_file)?;
+
+    match output_path {
+        Some(path) => {
+            let writer = BufWriter::new(File::create(path)?);
+            serde_yaml::to_writer(writer, &file)?;
+            println!("Dumped file to {}", path.display())
+        }
+        None => {
+            let writer = BufWriter::new(io::stdout());
+            serde_yaml::to_writer(writer, &file)?;
+        }
+    }
 
     Ok(())
 }
