@@ -107,9 +107,11 @@
 
 mod conversion;
 mod core;
+mod deserialize_core2;
 mod deserializer;
 mod deserializer_core;
 mod error;
+mod error2;
 mod serializer;
 mod serializer_core;
 mod types;
