@@ -119,10 +119,13 @@ impl<R: io::Read> XmlEventReader<R> {
             None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
         }
     }
-
-    // Previous versions included an `expect_peek` method but that method
-    // had a soundness problem. It extended a lifetime without bound, so it
-    // could have resulted in a dangling reference.
+    pub fn expect_peek(&mut self) -> XmlReadResult {
+        match self.peek() {
+            Some(Err(_)) => Err(self.next().unwrap().unwrap_err()),
+            Some(Ok(event)) => Ok(self.next().unwrap().unwrap()),
+            None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
+        }
+    }
 
     pub fn expect_start_with_name(
         &mut self,
