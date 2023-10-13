@@ -305,7 +305,6 @@ fn deserialize_root<R: Read>(
                     return Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event)));
                 }
             }
-            XmlReadEvent::EndDocument => break,
             _ => {
                 let event = reader.expect_next().unwrap();
                 return Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event)));

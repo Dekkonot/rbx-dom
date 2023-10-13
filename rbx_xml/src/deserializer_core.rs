@@ -28,18 +28,6 @@ pub enum XmlReadEvent {
     EndElement {
         name: String,
     },
-    EndDocument,
-}
-
-impl XmlReadEvent {
-    pub(crate) fn kind(&self) -> &'static str {
-        match self {
-            Self::StartElement { .. } => "StartElement",
-            Self::Text(_) => "Text",
-            Self::EndElement { .. } => "EndElement",
-            Self::EndDocument => "EndDocument",
-        }
-    }
 }
 
 impl<R: io::Read> Iterator for XmlEventReader<R> {
@@ -125,7 +113,7 @@ impl<R: io::Read> XmlEventReader<R> {
     pub fn expect_peek(&mut self) -> XmlReadResult {
         match self.peek() {
             Some(Err(_)) => Err(self.next().unwrap().unwrap_err()),
-            Some(Ok(event)) => Ok(self.next().unwrap().unwrap()),
+            Some(Ok(_)) => Ok(self.next().unwrap().unwrap()),
             None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
         }
     }
@@ -214,8 +202,7 @@ impl<R: io::Read> XmlEventReader<R> {
 
     /// Read a value that implements XmlType.
     pub(crate) fn read_value<T: XmlType>(&mut self) -> Result<T, DecodeError> {
-        // T::read_xml(self)
-        todo!()
+        T::read_xml(self)
     }
 
     /// Read a value that implements XmlType, expecting it to be enclosed in an
@@ -224,12 +211,11 @@ impl<R: io::Read> XmlEventReader<R> {
         &mut self,
         tag_name: &str,
     ) -> Result<T, DecodeError> {
-        // self.expect_start_with_name(tag_name)?;
-        // let value = self.read_value()?;
-        // self.expect_end_with_name(tag_name)?;
+        self.expect_start_with_name(tag_name)?;
+        let value = self.read_value()?;
+        self.expect_end_with_name(tag_name)?;
 
-        // Ok(value)
-        todo!()
+        Ok(value)
     }
 
     pub fn eat_unknown_tag(&mut self) -> Result<(), DecodeError> {
