@@ -26,7 +26,7 @@ impl XmlType for Option<CFrame> {
         match reader.expect_peek()? {
             // If the next tag is an opening CFrame element, this value is Some
             // and we can attempt to deserialize a regular CFrame.
-            XmlReadEvent::StartElement { name, .. } if name.local_name == "CFrame" => {
+            XmlReadEvent::StartElement { name, .. } if name == "CFrame" => {
                 reader.expect_start_with_name("CFrame")?;
                 let inner = CFrame::read_xml(reader)?;
                 reader.expect_end_with_name("CFrame")?;

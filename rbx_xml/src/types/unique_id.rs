@@ -17,7 +17,7 @@ impl XmlType for UniqueId {
 
         content
             .parse()
-            .map_err(|e| reader.error(DecodeErrorKind::TypeError(e)))
+            .map_err(|e| reader.error(DecodeErrorKind::from(e)))
     }
 
     fn write_xml<W: Write>(&self, writer: &mut XmlEventWriter<W>) -> Result<(), EncodeError> {

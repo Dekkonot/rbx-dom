@@ -34,11 +34,7 @@ impl XmlType for Content {
 
     fn read_xml<R: Read>(reader: &mut XmlEventReader<R>) -> Result<Self, DecodeError> {
         let value = match reader.expect_next()? {
-            XmlReadEvent::StartElement {
-                name,
-                attributes,
-                namespace,
-            } => match name.local_name.as_str() {
+            XmlReadEvent::StartElement { name, attributes } => match name.as_str() {
                 "null" => {
                     reader.expect_end_with_name("null")?;
 
@@ -51,11 +47,7 @@ impl XmlType for Content {
                     value
                 }
                 _ => {
-                    let event = XmlReadEvent::StartElement {
-                        name,
-                        attributes,
-                        namespace,
-                    };
+                    let event = XmlReadEvent::StartElement { name, attributes };
                     return Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event)));
                 }
             },

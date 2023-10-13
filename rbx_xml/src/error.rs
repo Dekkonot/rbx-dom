@@ -78,6 +78,8 @@ pub(crate) enum DecodeErrorKind {
         class_name: String,
         property_name: String,
     },
+    #[error("property value was invalid because: {0}")]
+    InvalidContent(&'static str),
 
     #[error("unexpected element start (expected {expected}, got {got})")]
     UnexpectedElementStart { expected: String, got: String },
