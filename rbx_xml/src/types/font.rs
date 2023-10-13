@@ -1,92 +1,19 @@
 use std::io::{Read, Write};
 
-use rbx_dom_weak::types::{Font, FontStyle, FontWeight};
+use rbx_dom_weak::types::{Content, Font, FontStyle, FontWeight};
 
 use crate::{
     core::XmlType,
     deserializer_core::{XmlEventReader, XmlReadEvent},
-    error::{DecodeError, DecodeErrorKind, EncodeError},
-    serializer_core::{XmlEventWriter, XmlWriteEvent},
+    error::{DecodeError, EncodeError},
+    serializer_core::XmlEventWriter,
 };
-
-fn write_content(
-    writer: &mut XmlEventWriter<impl Write>,
-    content: &str,
-    tag: &str,
-) -> Result<(), EncodeError> {
-    writer.write(XmlWriteEvent::start_element(tag))?;
-    if content.is_empty() {
-        // This doesn't feel like a great XML idiom
-        writer.write(XmlWriteEvent::start_element("null"))?;
-    } else {
-        writer.write(XmlWriteEvent::start_element("url"))?;
-        writer.write_string(content)?;
-    }
-    writer.write(XmlWriteEvent::end_element())?;
-    writer.write(XmlWriteEvent::end_element())?;
-    Ok(())
-}
-
-fn read_content_inner(reader: &mut XmlEventReader<impl Read>) -> Result<String, DecodeError> {
-    match reader.expect_next()? {
-        XmlReadEvent::StartElement {
-            name,
-            attributes,
-            namespace,
-        } => match name.local_name.as_str() {
-            "null" => {
-                reader.expect_end_with_name("null")?;
-                Ok(String::new())
-            }
-            "url" => {
-                let value = reader.read_characters()?;
-                reader.expect_end_with_name("url")?;
-                Ok(value)
-            }
-            _ => {
-                let event = XmlReadEvent::StartElement {
-                    name,
-                    attributes,
-                    namespace,
-                };
-                Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event)))
-            }
-        },
-        event => Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event))),
-    }
-}
-
-fn read_content(reader: &mut XmlEventReader<impl Read>, tag: &str) -> Result<String, DecodeError> {
-    match reader.expect_next()? {
-        XmlReadEvent::StartElement {
-            name,
-            attributes,
-            namespace,
-        } => {
-            if name.local_name.as_str() != tag {
-                let event = XmlReadEvent::StartElement {
-                    name,
-                    attributes,
-                    namespace,
-                };
-                return Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event)));
-            }
-        }
-        event => return Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event))),
-    };
-
-    let value = read_content_inner(reader)?;
-
-    reader.expect_end_with_name(tag)?;
-
-    Ok(value)
-}
 
 impl XmlType for Font {
     const XML_TAG_NAME: &'static str = "Font";
 
     fn write_xml<W: Write>(&self, writer: &mut XmlEventWriter<W>) -> Result<(), EncodeError> {
-        write_content(writer, &self.family, "Family")?;
+        writer.write_value_in_tag(&Content::from(self.family.as_str()), "Family")?;
 
         writer.write_value_in_tag(&self.weight.as_u16(), "Weight")?;
 
@@ -97,7 +24,7 @@ impl XmlType for Font {
         writer.write_tag_characters("Style", style)?;
 
         if let Some(ref cached_face_id) = self.cached_face_id {
-            write_content(writer, cached_face_id, "CachedFaceId")?;
+            writer.write_value_in_tag(&Content::from(cached_face_id.as_str()), "CachedFaceId")?;
         }
 
         Ok(())
@@ -110,7 +37,7 @@ impl XmlType for Font {
             return Ok(Font::default());
         }
 
-        let family = read_content(reader, "Family")?;
+        let family = reader.read_value_in_tag::<Content>("Family")?.into_string();
 
         let weight: u16 = reader.read_value_in_tag("Weight")?;
         let weight = FontWeight::from_u16(weight).unwrap_or_default();
@@ -122,9 +49,11 @@ impl XmlType for Font {
         };
 
         let cached_face_id = match reader.expect_peek()? {
-            XmlReadEvent::StartElement { name, .. } if name.local_name == "CachedFaceId" => {
-                Some(read_content(reader, "CachedFaceId")?)
-            }
+            XmlReadEvent::StartElement { name, .. } if name == "CachedFaceId" => Some(
+                reader
+                    .read_value_in_tag::<Content>("CachedFaceId")?
+                    .into_string(),
+            ),
             _ => None,
         };
 
