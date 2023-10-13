@@ -11,10 +11,8 @@ use rbx_dom_weak::{
 use rbx_reflection::{DataType, PropertyKind, PropertySerialization};
 
 use crate::{
-    conversion::ConvertVariant,
-    core::find_canonical_property_descriptor,
-    error::{DecodeError, DecodeErrorKind},
-    types::read_value_xml,
+    conversion::ConvertVariant, core::find_canonical_property_descriptor, types::read_value_xml,
+    DecodeError, DecodeErrorKind,
 };
 
 use crate::deserializer_core::{XmlEventReader, XmlReadEvent};
@@ -253,23 +251,22 @@ fn deserialize_root<R: Read>(
     state: &mut ParseState,
     parent_id: Ref,
 ) -> Result<(), DecodeError> {
-    match reader.expect_next()? {
-        XmlReadEvent::StartDocument { .. } => {}
-        _ => unreachable!(),
-    }
-
     let doc_attributes = reader.expect_start_with_name("roblox")?;
 
     let mut doc_version = None;
 
-    for attribute in doc_attributes.into_iter() {
-        if attribute.name.local_name.as_str() == "version" {
-            doc_version = Some(attribute.value);
+    for (name, value) in doc_attributes.into_iter() {
+        if name == "version" {
+            doc_version = Some(value);
         }
     }
 
-    let doc_version =
-        doc_version.ok_or_else(|| reader.error(DecodeErrorKind::MissingAttribute("version")))?;
+    let doc_version = doc_version.ok_or_else(|| {
+        reader.error(DecodeErrorKind::MissingAttribute {
+            element: "Roblox".to_owned(),
+            name: "version",
+        })
+    })?;
 
     if doc_version != "4" {
         return Err(reader.error(DecodeErrorKind::WrongDocVersion(doc_version)));
@@ -278,7 +275,7 @@ fn deserialize_root<R: Read>(
     loop {
         match reader.expect_peek()? {
             XmlReadEvent::StartElement { name, .. } => {
-                match name.local_name.as_str() {
+                match name.as_str() {
                     "Item" => {
                         deserialize_instance(reader, state, parent_id)?;
                     }
@@ -300,7 +297,7 @@ fn deserialize_root<R: Read>(
                 }
             }
             XmlReadEvent::EndElement { name } => {
-                if name.local_name == "roblox" {
+                if name == "roblox" {
                     reader.expect_next().unwrap();
                     break;
                 } else {
@@ -326,15 +323,20 @@ fn deserialize_metadata<R: Read>(
     let name = {
         let attributes = reader.expect_start_with_name("Meta")?;
 
-        let mut name = None;
+        let mut meta_name = None;
 
-        for attribute in attributes.into_iter() {
-            if attribute.name.local_name.as_str() == "name" {
-                name = Some(attribute.value);
+        for (name, value) in attributes.into_iter() {
+            if name == "name" {
+                meta_name = Some(value);
             }
         }
 
-        name.ok_or_else(|| reader.error(DecodeErrorKind::MissingAttribute("name")))?
+        meta_name.ok_or_else(|| {
+            reader.error(DecodeErrorKind::MissingAttribute {
+                name: "name",
+                element: "Meta".to_owned(),
+            })
+        })?
     };
 
     let value = reader.read_characters()?;
@@ -353,7 +355,7 @@ fn deserialize_shared_string_dict<R: Read>(
     loop {
         match reader.expect_peek()? {
             XmlReadEvent::StartElement { name, .. } => {
-                if name.local_name == "SharedString" {
+                if name == "SharedString" {
                     deserialize_shared_string(reader, state)?;
                 } else {
                     let event = reader.expect_next().unwrap();
@@ -361,7 +363,7 @@ fn deserialize_shared_string_dict<R: Read>(
                 }
             }
             XmlReadEvent::EndElement { name } => {
-                if name.local_name == "SharedStrings" {
+                if name == "SharedStrings" {
                     break;
                 } else {
                     let event = reader.expect_next().unwrap();
@@ -386,15 +388,19 @@ fn deserialize_shared_string<R: Read>(
     let attributes = reader.expect_start_with_name("SharedString")?;
 
     let mut md5_hash = None;
-    for attribute in attributes.into_iter() {
-        if attribute.name.local_name == "md5" {
-            md5_hash = Some(attribute.value);
+    for (name, value) in attributes.into_iter() {
+        if name == "md5" {
+            md5_hash = Some(value);
             break;
         }
     }
 
-    let md5_hash =
-        md5_hash.ok_or_else(|| reader.error(DecodeErrorKind::MissingAttribute("md5")))?;
+    let md5_hash = md5_hash.ok_or_else(|| {
+        reader.error(DecodeErrorKind::MissingAttribute {
+            name: "md5",
+            element: "SharedString".to_owned(),
+        })
+    })?;
 
     let buffer = reader.read_base64_characters()?;
 
@@ -417,16 +423,20 @@ fn deserialize_instance<R: Read>(
         let mut class = None;
         let mut referent = None;
 
-        for attribute in attributes.into_iter() {
-            match attribute.name.local_name.as_str() {
-                "class" => class = Some(attribute.value),
-                "referent" => referent = Some(attribute.value),
+        for (name, value) in attributes.into_iter() {
+            match name.as_str() {
+                "class" => class = Some(value),
+                "referent" => referent = Some(value),
                 _ => {}
             }
         }
 
-        let class =
-            class.ok_or_else(|| reader.error(DecodeErrorKind::MissingAttribute("class")))?;
+        let class = class.ok_or_else(|| {
+            reader.error(DecodeErrorKind::MissingAttribute {
+                element: "Item".to_owned(),
+                name: "class",
+            })
+        })?;
 
         (class, referent)
     };
@@ -444,7 +454,7 @@ fn deserialize_instance<R: Read>(
 
     loop {
         match reader.expect_peek()? {
-            XmlReadEvent::StartElement { name, .. } => match name.local_name.as_str() {
+            XmlReadEvent::StartElement { name, .. } => match name.as_str() {
                 "Properties" => {
                     deserialize_properties(reader, state, instance_id, &mut properties)?;
                 }
@@ -457,7 +467,7 @@ fn deserialize_instance<R: Read>(
                 }
             },
             XmlReadEvent::EndElement { name } => {
-                if name.local_name != "Item" {
+                if name != "Item" {
                     let event = reader.expect_next().unwrap();
                     return Err(reader.error(DecodeErrorKind::UnexpectedXmlEvent(event)));
                 }
@@ -521,22 +531,27 @@ fn deserialize_properties<R: Read>(
                 } => {
                     let mut xml_property_name = None;
 
-                    for attribute in attributes {
-                        if attribute.name.local_name.as_str() == "name" {
-                            xml_property_name = Some(attribute.value.to_owned());
+                    for (name, value) in attributes {
+                        if name == "name" {
+                            xml_property_name = Some(value);
                             break;
                         }
                     }
 
                     let xml_property_name = match xml_property_name {
                         Some(value) => value,
-                        None => return Err(reader.error(DecodeErrorKind::MissingAttribute("name"))),
+                        None => {
+                            return Err(reader.error(DecodeErrorKind::MissingAttribute {
+                                element: name,
+                                name: "name",
+                            }))
+                        }
                     };
 
-                    (name.local_name.to_owned(), xml_property_name)
+                    (name, xml_property_name)
                 }
                 XmlReadEvent::EndElement { name } => {
-                    if name.local_name == "Properties" {
+                    if name == "Properties" {
                         reader.expect_next()?;
                         return Ok(());
                     } else {
@@ -627,7 +642,7 @@ fn deserialize_properties<R: Read>(
                                 );
                             }
                             Err(error) => {
-                                return Err(reader.error(DecodeErrorKind::MigrationError(error)));
+                                return Err(reader.error(DecodeErrorKind::from(error)));
                             }
                         }
                     }

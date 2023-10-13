@@ -28,6 +28,7 @@ pub enum XmlReadEvent {
     EndElement {
         name: String,
     },
+    EndDocument,
 }
 
 impl XmlReadEvent {
@@ -36,6 +37,7 @@ impl XmlReadEvent {
             Self::StartElement { .. } => "StartElement",
             Self::Text(_) => "Text",
             Self::EndElement { .. } => "EndElement",
+            Self::EndDocument => "EndDocument",
         }
     }
 }
@@ -119,6 +121,7 @@ impl<R: io::Read> XmlEventReader<R> {
             None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
         }
     }
+
     pub fn expect_peek(&mut self) -> XmlReadResult {
         match self.peek() {
             Some(Err(_)) => Err(self.next().unwrap().unwrap_err()),
@@ -142,10 +145,7 @@ impl<R: io::Read> XmlEventReader<R> {
                     Ok(attributes)
                 }
             }
-            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent {
-                expected: "ElementStart",
-                got: event.kind(),
-            })),
+            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent(event))),
         }
     }
 
@@ -161,10 +161,7 @@ impl<R: io::Read> XmlEventReader<R> {
                     Ok(())
                 }
             }
-            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent {
-                expected: "ElementEnd",
-                got: event.kind(),
-            })),
+            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent(event))),
         }
     }
 

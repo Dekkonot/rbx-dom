@@ -1,5 +1,6 @@
 use std::io::Read;
 
+use rbx_dom_weak::types::VariantType;
 use thiserror::Error;
 
 use crate::deserializer_core::{XmlEventReader, XmlReadEvent};
@@ -50,8 +51,26 @@ pub(crate) enum DecodeErrorKind {
     #[error(transparent)]
     Type(#[from] rbx_dom_weak::types::Error),
 
+    #[error("document was wrong version (supported version is 4, document is version {0})")]
+    WrongDocVersion(String),
     #[error("element {element} is missing attribute {name}")]
-    MissingAttribute { name: String, element: String },
+    MissingAttribute { name: &'static str, element: String },
+
+    #[error("Name property must be a String (was a {0:?})")]
+    NameMustBeString(VariantType),
+    #[error("Property {class_name}.{property_name} is expected to be of type {expected_type:?}, but it was of type {actual_type:?}. When trying to convert, this error occured: {message}")]
+    UnsupportedPropertyConversion {
+        class_name: String,
+        property_name: String,
+        expected_type: VariantType,
+        actual_type: VariantType,
+        message: String,
+    },
+    #[error("Property {class_name}.{property_name} is unknown")]
+    UnknownProperty {
+        class_name: String,
+        property_name: String,
+    },
 
     #[error("unexpected element start (expected {expected}, got {got})")]
     UnexpectedElementStart { expected: String, got: String },
@@ -59,9 +78,6 @@ pub(crate) enum DecodeErrorKind {
     UnexpectedElementEnd { expected: String, got: String },
     #[error("unexpected EoF")]
     UnexpectedEof,
-    #[error("unexpected XML event {got} when expecting {expected}")]
-    UnexpectedXmlEvent {
-        expected: &'static str,
-        got: &'static str,
-    },
+    #[error("unexpected XML event {0:?}")]
+    UnexpectedXmlEvent(XmlReadEvent),
 }
