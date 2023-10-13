@@ -47,9 +47,10 @@ use crate::{
     core::XmlType,
     deserializer::ParseState,
     deserializer_core::XmlEventReader,
-    error::{DecodeError, EncodeError, EncodeErrorKind},
+    error::{EncodeError, EncodeErrorKind},
     serializer::EmitState,
     serializer_core::XmlEventWriter,
+    DecodeError,
 };
 
 use self::{

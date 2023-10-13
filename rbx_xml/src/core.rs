@@ -4,8 +4,9 @@ use rbx_reflection::{PropertyDescriptor, PropertyKind, PropertySerialization};
 
 use crate::{
     deserializer_core::XmlEventReader,
-    error::{DecodeError, EncodeError},
+    error::EncodeError,
     serializer_core::{XmlEventWriter, XmlWriteEvent},
+    DecodeError,
 };
 
 /// Trait that defines how to read and write a given type into the XML model

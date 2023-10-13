@@ -7,7 +7,7 @@ use quick_xml::{
 
 use crate::core::XmlType;
 
-use super::error2::{DecodeError, DecodeErrorKind};
+use crate::{DecodeError, DecodeErrorKind};
 
 pub type XmlReadResult = Result<XmlReadEvent, DecodeError>;
 
