@@ -1,232 +1,200 @@
-use std::io::Read;
+use std::{collections::HashMap, io};
 
-use log::trace;
-use xml::{attribute::OwnedAttribute, reader::ParserConfig};
-
-use crate::{
-    core::XmlType,
-    error::{DecodeError as NewDecodeError, DecodeErrorKind},
+use quick_xml::{
+    events::{BytesEnd, BytesStart, Event},
+    Reader,
 };
 
-pub use xml::reader::Error as XmlReadError;
-pub use xml::reader::XmlEvent as XmlReadEvent;
-pub type XmlReadResult = Result<XmlReadEvent, XmlReadError>;
+use crate::core::XmlType;
 
-/// A wrapper around an XML event iterator created by xml-rs.
-pub struct XmlEventReader<R: Read> {
-    reader: xml::EventReader<R>,
-    peeked: Option<Result<XmlReadEvent, xml::reader::Error>>,
+use super::error2::{DecodeError, DecodeErrorKind};
+
+pub type XmlReadResult = Result<XmlReadEvent, DecodeError>;
+
+pub struct XmlEventReader<R: io::Read> {
+    reader: Reader<io::BufReader<R>>,
+    peeked: Option<XmlReadResult>,
+    event_buffer: Vec<u8>,
     finished: bool,
 }
 
-impl<R: Read> Iterator for XmlEventReader<R> {
-    type Item = XmlReadResult;
+#[derive(Debug)]
+pub enum XmlReadEvent {
+    StartElement {
+        name: String,
+        attributes: HashMap<String, String>,
+    },
+    Text(String),
+    EndElement {
+        name: String,
+    },
+}
 
-    fn next(&mut self) -> Option<XmlReadResult> {
-        if let Some(value) = self.peeked.take() {
-            return Some(value);
-        }
-
-        if self.finished {
-            return None;
-        }
-
-        loop {
-            match self.reader.next() {
-                Ok(item) => match item {
-                    XmlReadEvent::Whitespace(_) => continue,
-                    XmlReadEvent::EndDocument => {
-                        self.finished = true;
-                        return Some(Ok(item));
-                    }
-                    _ => return Some(Ok(item)),
-                },
-                Err(err) => {
-                    self.finished = true;
-                    return Some(Err(err));
-                }
-            }
+impl XmlReadEvent {
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            Self::StartElement { .. } => "StartElement",
+            Self::Text(_) => "Text",
+            Self::EndElement { .. } => "EndElement",
         }
     }
 }
 
-impl<R: Read> XmlEventReader<R> {
-    /// Constructs a new `XmlEventReader` from a source that implements `Read`.
-    pub fn from_source(source: R) -> XmlEventReader<R> {
-        let reader = ParserConfig::new()
-            .ignore_comments(true)
-            .create_reader(source);
+impl<R: io::Read> Iterator for XmlEventReader<R> {
+    type Item = XmlReadResult;
 
-        XmlEventReader {
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.peeked.is_some() {
+            return self.peeked.take();
+        }
+        if self.finished {
+            return None;
+        }
+
+        let res = match self.reader.read_event_into(&mut self.event_buffer) {
+            Ok(event) => {
+                match event {
+                    Event::Start(bytes) => parse_start(&bytes),
+                    Event::End(bytes) => parse_end(&bytes),
+                    Event::Text(bytes) => bytes
+                        .unescape()
+                        .map(|data| XmlReadEvent::Text(data.into()))
+                        .map_err(|e| e.into()),
+                    Event::CData(bytes) => to_string_helper(&bytes).map(XmlReadEvent::Text),
+                    Event::Eof => {
+                        self.finished = true;
+                        return None;
+                    }
+                    // TODO error here
+                    _ => panic!("what"),
+                }
+                .map_err(|e| self.error(e))
+            }
+            Err(err) => Err(self.error(err)),
+        };
+
+        if res.is_err() {
+            self.finished = true;
+        }
+        Some(res)
+    }
+}
+
+impl<R: io::Read> XmlEventReader<R> {
+    /// Returns the byte offset of the internal reader.
+    ///
+    /// Note that as of this moment (9 October 2023), `quick_xml` doesn't
+    /// track the row or column location and it is prohibitively expensive
+    /// to calculate.
+    pub(crate) fn location(&self) -> usize {
+        self.reader.buffer_position()
+    }
+
+    /// Creates a new `XmlReader` from the provided argument.
+    pub fn from_source(source: R) -> XmlEventReader<R> {
+        let mut reader = Reader::from_reader(io::BufReader::new(source));
+        reader.trim_text(true);
+        Self {
             reader,
+            event_buffer: Vec::new(),
             peeked: None,
             finished: false,
         }
     }
 
-    /// Borrows the next element from the event stream without consuming it.
     pub fn peek(&mut self) -> Option<&XmlReadResult> {
-        if self.peeked.is_some() {
-            return self.peeked.as_ref();
+        if self.peeked.is_none() {
+            self.peeked = self.next();
         }
-
-        self.peeked = self.next();
         self.peeked.as_ref()
     }
 
-    pub(crate) fn error<T: Into<DecodeErrorKind>>(&self, kind: T) -> NewDecodeError {
-        NewDecodeError::new_from_reader(kind.into(), &self.reader)
+    pub(crate) fn error<T: Into<DecodeErrorKind>>(&self, kind: T) -> DecodeError {
+        DecodeError::from_reader::<R, T>(self, kind)
     }
 
-    pub fn expect_next(&mut self) -> Result<XmlReadEvent, NewDecodeError> {
+    pub fn expect_next(&mut self) -> XmlReadResult {
         match self.next() {
-            Some(Ok(event)) => Ok(event),
-            Some(Err(err)) => Err(self.error(err)),
+            Some(inner) => inner,
             None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
         }
     }
 
-    pub fn expect_peek(&mut self) -> Result<&XmlReadEvent, NewDecodeError> {
-        // This weird transmute is here because NLL in current Rust (1.34)
-        // extends borrows to the entire function when returning borrowed
-        // values.
-        //
-        // This code without the transmute compiles with -Zpolonius as of
-        // 2019-04-30. I don't believe it to be a soundness hole, but I also
-        // don't fully understand why this transmute tricks Rust into thinking
-        // the code is correct.
-        let peeked_value = unsafe {
-            std::mem::transmute::<
-                Option<&Result<XmlReadEvent, XmlReadError>>,
-                Option<&Result<XmlReadEvent, XmlReadError>>,
-            >(self.peek())
-        };
+    // Previous versions included an `expect_peek` method but that method
+    // had a soundness problem. It extended a lifetime without bound, so it
+    // could have resulted in a dangling reference.
 
-        match peeked_value {
-            Some(Ok(event)) => Ok(event),
-            Some(Err(_)) => Err(self.expect_next().unwrap_err()),
-            None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
-        }
-    }
-
-    /// Consumes the next event and returns `Ok(())` if it was an opening tag
-    /// with the given name, otherwise returns an error.
     pub fn expect_start_with_name(
         &mut self,
         expected_name: &str,
-    ) -> Result<Vec<OwnedAttribute>, NewDecodeError> {
+    ) -> Result<HashMap<String, String>, DecodeError> {
         match self.expect_next()? {
-            XmlReadEvent::StartElement {
-                name,
-                attributes,
-                namespace,
-            } => {
-                if name.local_name != expected_name {
-                    let event = XmlReadEvent::StartElement {
-                        name,
-                        attributes,
-                        namespace,
-                    };
-                    return Err(self.error(DecodeErrorKind::UnexpectedXmlEvent(event)));
+            XmlReadEvent::StartElement { name, attributes } => {
+                if name != expected_name {
+                    Err(self.error(DecodeErrorKind::UnexpectedElementStart {
+                        expected: expected_name.into(),
+                        got: name,
+                    }))
+                } else {
+                    Ok(attributes)
                 }
-
-                Ok(attributes)
             }
-            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent(event))),
+            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent {
+                expected: "ElementStart",
+                got: event.kind(),
+            })),
         }
     }
 
-    /// Consumes the next event and returns `Ok(())` if it was a closing tag
-    /// with the given name, otherwise returns an error.
-    pub fn expect_end_with_name(&mut self, expected_name: &str) -> Result<(), NewDecodeError> {
-        let event = self.expect_next()?;
-
-        match &event {
-            XmlReadEvent::EndElement { name, .. } => {
-                if name.local_name != expected_name {
-                    return Err(self.error(DecodeErrorKind::UnexpectedXmlEvent(event)));
+    pub fn expect_end_with_name(&mut self, expected_name: &str) -> Result<(), DecodeError> {
+        match self.expect_next()? {
+            XmlReadEvent::EndElement { name } => {
+                if name != expected_name {
+                    Err(self.error(DecodeErrorKind::UnexpectedElementEnd {
+                        expected: expected_name.into(),
+                        got: name,
+                    }))
+                } else {
+                    Ok(())
                 }
-
-                Ok(())
             }
-            _ => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent(event))),
+            event => Err(self.error(DecodeErrorKind::UnexpectedXmlEvent {
+                expected: "ElementEnd",
+                got: event.kind(),
+            })),
         }
     }
 
-    /// Reads one `Characters` or `CData` event if the next event is a
-    /// `Characters` or `CData` event.
-    ///
-    /// If the next event in the stream is not a character event, this function
-    /// will return `Ok(None)` and leave the stream untouched.
-    ///
-    /// This is the inner kernel of `read_characters`, which is the public
-    /// version of a similar idea.
-    fn read_one_characters_event(&mut self) -> Result<Option<String>, NewDecodeError> {
-        // This pattern (peek + next) is pretty gnarly but is useful for looking
-        // ahead without touching the stream.
-
+    fn read_characters_inner(&mut self) -> Result<Option<String>, DecodeError> {
+        // `peek` returns Option<&Result>, so we can't just use the inner
+        // values. So, we have to use `next` in the event we need the value.
         match self.peek() {
-            // If the next event is a `Characters` or `CData` event, we need to
-            // use `next` to take ownership over it (with some careful unwraps)
-            // and extract the data out of it.
-            //
-            // We could also clone the borrowed data obtained from peek, but
-            // some of the character events can contain several megabytes of
-            // data, so a copy is really expensive.
-            Some(Ok(XmlReadEvent::Characters(_))) | Some(Ok(XmlReadEvent::CData(_))) => {
-                match self.next().unwrap().unwrap() {
-                    XmlReadEvent::Characters(value) | XmlReadEvent::CData(value) => Ok(Some(value)),
-                    _ => unreachable!(),
-                }
-            }
-
-            // Since we can't use `?` (we have a `&Result` instead of a `Result`)
-            // we have to do something similar to what it would do.
+            Some(Ok(XmlReadEvent::Text(_))) => match self.next().unwrap().unwrap() {
+                XmlReadEvent::Text(data) => Ok(Some(data)),
+                _ => unreachable!(),
+            },
             Some(Err(_)) => {
                 let kind = self.next().unwrap().unwrap_err();
-                Err(self.error(kind))
+                Err(kind)
             }
-
-            None | Some(Ok(_)) => Ok(None),
+            _ => Ok(None),
         }
     }
 
-    /// Reads a contiguous sequence of zero or more `Characters` and `CData`
-    /// events from the event stream.
-    ///
-    /// Normally, consumers of xml-rs shouldn't need to do this since the
-    /// combination of `cdata_to_characters` and `coalesce_characters` does
-    /// something very similar. Because we want to support CDATA sequences that
-    /// contain only whitespace, we have two options:
-    ///
-    /// 1. Every time we want to read an XML event, use a loop and skip over all
-    ///    `Whitespace` events
-    ///
-    /// 2. Turn off `cdata_to_characters` in `ParserConfig` and use a regular
-    ///    iterator filter to strip `Whitespace` events
-    ///
-    /// For complexity, performance, and correctness reasons, we switched from
-    /// #1 to #2. However, this means we need to coalesce `Characters` and
-    /// `CData` events ourselves.
-    pub fn read_characters(&mut self) -> Result<String, NewDecodeError> {
-        let mut buffer = match self.read_one_characters_event()? {
+    pub fn read_characters(&mut self) -> Result<String, DecodeError> {
+        let mut buffer = match self.read_characters_inner()? {
             Some(buffer) => buffer,
             None => return Ok(String::new()),
         };
 
-        while let Some(piece) = self.read_one_characters_event()? {
-            buffer.push_str(&piece);
+        while let Some(part) = self.read_characters_inner()? {
+            buffer.push_str(&part);
         }
 
         Ok(buffer)
     }
 
-    /// Reads characters from the head of the deserializer and attempts to parse
-    /// them as base64 and turn them into a buffer of bytes.
-    ///
-    /// In Roblox XML model files, binary data is base64 encoded and
-    /// line-wrapped, meaning we have to be careful to ignore whitespace.
-    pub fn read_base64_characters(&mut self) -> Result<Vec<u8>, NewDecodeError> {
+    pub fn read_base64_characters(&mut self) -> Result<Vec<u8>, DecodeError> {
         let contents: String = self
             .read_characters()?
             .chars()
@@ -236,17 +204,7 @@ impl<R: Read> XmlEventReader<R> {
         base64::decode(contents).map_err(|e| self.error(e))
     }
 
-    /// Reads a tag completely and returns its text content. This is intended
-    /// for parsing simple tags where we don't care about the attributes or
-    /// children, only the text value, for Vector3s and such, which are encoded
-    /// like:
-    ///
-    /// <Vector3>
-    ///     <X>0</X>
-    ///     <Y>0</Y>
-    ///     <Z>0</Z>
-    /// </Vector3>
-    pub fn read_tag_contents(&mut self, expected_name: &str) -> Result<String, NewDecodeError> {
+    pub fn read_tag_contents(&mut self, expected_name: &str) -> Result<String, DecodeError> {
         self.expect_start_with_name(expected_name)?;
         let contents = self.read_characters()?;
         self.expect_end_with_name(expected_name)?;
@@ -255,8 +213,9 @@ impl<R: Read> XmlEventReader<R> {
     }
 
     /// Read a value that implements XmlType.
-    pub(crate) fn read_value<T: XmlType>(&mut self) -> Result<T, NewDecodeError> {
-        T::read_xml(self)
+    pub(crate) fn read_value<T: XmlType>(&mut self) -> Result<T, DecodeError> {
+        // T::read_xml(self)
+        todo!()
     }
 
     /// Read a value that implements XmlType, expecting it to be enclosed in an
@@ -264,41 +223,77 @@ impl<R: Read> XmlEventReader<R> {
     pub(crate) fn read_value_in_tag<T: XmlType>(
         &mut self,
         tag_name: &str,
-    ) -> Result<T, NewDecodeError> {
-        self.expect_start_with_name(tag_name)?;
-        let value = self.read_value()?;
-        self.expect_end_with_name(tag_name)?;
+    ) -> Result<T, DecodeError> {
+        // self.expect_start_with_name(tag_name)?;
+        // let value = self.read_value()?;
+        // self.expect_end_with_name(tag_name)?;
 
-        Ok(value)
+        // Ok(value)
+        todo!()
     }
 
-    /// Consume events from the iterator until we reach the end of the next tag.
-    pub fn eat_unknown_tag(&mut self) -> Result<(), NewDecodeError> {
+    pub fn eat_unknown_tag(&mut self) -> Result<(), DecodeError> {
         let mut depth = 0;
 
-        trace!("Starting unknown block");
+        log::trace!("Starting unknown block");
 
         loop {
             match self.expect_next()? {
                 XmlReadEvent::StartElement { name, .. } => {
-                    trace!("Eat unknown start: {:?}", name);
+                    log::trace!("Eat unknown start: {:?}", name);
                     depth += 1;
                 }
                 XmlReadEvent::EndElement { name } => {
-                    trace!("Eat unknown end: {:?}", name);
+                    log::trace!("Eat unknown end: {:?}", name);
                     depth -= 1;
 
                     if depth == 0 {
-                        trace!("Reached end of unknown block");
+                        log::trace!("Reached end of unknown block");
                         break;
                     }
                 }
                 other => {
-                    trace!("Eat unknown: {:?}", other);
+                    log::trace!("Eat unknown: {:?}", other);
                 }
             }
         }
 
         Ok(())
     }
+}
+
+/// Takes a borrowed quick_xml start event and parses it into a
+/// set of owned data. Despite returning a generic `XmlReadEvent`,
+/// this always returns an `XmlReadEvent::Start`.
+fn parse_start(event: &BytesStart) -> Result<XmlReadEvent, DecodeErrorKind> {
+    let name = to_string_helper(event.name().into_inner())?;
+    let attributes: Result<HashMap<String, String>, DecodeErrorKind> = event
+        .attributes()
+        .map(|maybe| match maybe {
+            Ok(attr) => Ok((
+                to_string_helper(attr.key.into_inner())?,
+                to_string_helper(&attr.value)?,
+            )),
+            Err(err) => Err(err.into()),
+        })
+        .collect();
+    Ok(XmlReadEvent::StartElement {
+        name,
+        attributes: attributes?,
+    })
+}
+
+/// Takes a borrow quick_xml end event and returns an owned event.
+/// Despite returning a generic `XmlReadEvent`, this always returns an
+/// `XmlReadEvent::End`.
+#[inline]
+fn parse_end(event: &BytesEnd) -> Result<XmlReadEvent, DecodeErrorKind> {
+    to_string_helper(event.name().into_inner()).map(|name| XmlReadEvent::EndElement { name })
+}
+
+/// A simple helper function for converting to a string
+#[inline]
+fn to_string_helper(data: &[u8]) -> Result<String, DecodeErrorKind> {
+    let inner = Vec::from(data);
+    Ok(String::from_utf8(inner)?)
 }

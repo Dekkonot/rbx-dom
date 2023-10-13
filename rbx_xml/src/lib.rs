@@ -107,7 +107,6 @@
 
 mod conversion;
 mod core;
-mod deserialize_core2;
 mod deserializer;
 mod deserializer_core;
 mod error;
@@ -129,9 +128,12 @@ use crate::{deserializer::decode_internal, serializer::encode_internal};
 
 pub use crate::{
     deserializer::{DecodeOptions, DecodePropertyBehavior},
-    error::{DecodeError, EncodeError},
+    error::EncodeError,
+    error2::DecodeError,
     serializer::{EncodeOptions, EncodePropertyBehavior},
 };
+
+pub(crate) use crate::error2::DecodeErrorKind;
 
 /// Decodes an XML-format model or place from something that implements the
 /// `std::io::Read` trait.

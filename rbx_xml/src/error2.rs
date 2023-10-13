@@ -2,7 +2,7 @@ use std::io::Read;
 
 use thiserror::Error;
 
-use crate::deserialize_core2::{XmlReadEvent, XmlReader};
+use crate::deserializer_core::{XmlEventReader, XmlReadEvent};
 
 #[derive(Debug, Error)]
 #[error(transparent)]
@@ -12,7 +12,7 @@ pub struct DecodeError {
 
 impl DecodeError {
     pub(crate) fn from_reader<R: Read, E: Into<DecodeErrorKind>>(
-        reader: &XmlReader<R>,
+        reader: &XmlEventReader<R>,
         kind: E,
     ) -> Self {
         Self {
