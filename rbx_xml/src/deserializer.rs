@@ -529,10 +529,11 @@ fn deserialize_properties<R: Read>(
                     name, attributes, ..
                 } => {
                     let mut xml_property_name = None;
+                    let owned_name = name.to_owned();
 
                     for (name, value) in attributes {
                         if name == "name" {
-                            xml_property_name = Some(value);
+                            xml_property_name = Some(value.to_owned());
                             break;
                         }
                     }
@@ -541,13 +542,13 @@ fn deserialize_properties<R: Read>(
                         Some(value) => value,
                         None => {
                             return Err(reader.error(DecodeErrorKind::MissingAttribute {
-                                element: name,
+                                element: owned_name,
                                 name: "name",
                             }))
                         }
                     };
 
-                    (name, xml_property_name)
+                    (owned_name, xml_property_name)
                 }
                 XmlReadEvent::EndElement { name } => {
                     if name == "Properties" {

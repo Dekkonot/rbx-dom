@@ -110,10 +110,25 @@ impl<R: io::Read> XmlEventReader<R> {
         }
     }
 
-    pub fn expect_peek(&mut self) -> XmlReadResult {
-        match self.peek() {
-            Some(Err(_)) => Err(self.next().unwrap().unwrap_err()),
-            Some(Ok(_)) => Ok(self.next().unwrap().unwrap()),
+    pub fn expect_peek<'a>(&'a mut self) -> Result<&'a XmlReadEvent, DecodeError> {
+        // This transmute is necessary due to a limitation with Rust's borrow
+        // checker. For a detailed answer, see the Rustnomicon:
+        // https://doc.rust-lang.org/nomicon/lifetime-mismatch.html
+        //
+        // The long story short is that a mutable reference out lives the
+        // return of this function, so Rust doesn't know it is sound. This was
+        // true when this function was originally implemented (2019-04-30) and
+        // is still true now (2023-10-13). We know it is though, so we can
+        // politely ask Rust to listen to us.
+        let peeked_value =
+            // SAFETY: The result of this transmute shares the same type as
+            // the original and is bound by the lifetime of `self` so it cannot
+            // dangle.
+            unsafe { std::mem::transmute::<Option<&XmlReadResult>, Option<&'a XmlReadResult>>(self.peek()) };
+
+        match peeked_value {
+            Some(Ok(event)) => Ok(event),
+            Some(Err(_)) => Err(self.expect_next().unwrap_err()),
             None => Err(self.error(DecodeErrorKind::UnexpectedEof)),
         }
     }
