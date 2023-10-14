@@ -16,7 +16,6 @@ where
     println!("{}", std::str::from_utf8(&buffer).unwrap());
 
     let mut reader = XmlEventReader::from_source(buffer.as_slice());
-    reader.next().unwrap().unwrap(); // Eat StartDocument event
 
     let value = T::read_outer_xml(&mut reader).unwrap();
 
@@ -48,8 +47,8 @@ where
     loop {
         let (expected, actual) = (expected_events.next(), actual_events.next());
 
-        match (expected.is_some(), actual.is_some()) {
-            (true, true) => {
+        match (expected, actual) {
+            (Some(Ok(expected)), Some(Ok(actual))) => {
                 if expected != actual {
                     println!("Expected event: {:#?}", expected);
                     println!("Actual event: {:#?}", actual);
@@ -57,11 +56,15 @@ where
                     fail();
                 }
             }
-            (true, false) | (false, true) => {
+            (Some(Err(_)), Some(_)) | (Some(_), Some(Err(_))) => {
+                println!("Event streams emitted an error!");
+                fail();
+            }
+            (Some(_), None) | (None, Some(_)) => {
                 println!("Event streams were different lengths!");
                 fail()
             }
-            (false, false) => break,
+            (None, None) => break,
         }
     }
 }
@@ -73,7 +76,6 @@ where
     let _ = env_logger::try_init();
 
     let mut reader = XmlEventReader::from_source(source.as_bytes());
-    reader.next().unwrap().unwrap(); // Eat StartDocument event
     let value = T::read_outer_xml(&mut reader).unwrap();
 
     assert_eq!(&value, expected_value);

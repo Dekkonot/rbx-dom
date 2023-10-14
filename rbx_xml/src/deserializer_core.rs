@@ -18,7 +18,7 @@ pub struct XmlEventReader<R: io::Read> {
     finished: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum XmlReadEvent {
     StartElement {
         name: String,
