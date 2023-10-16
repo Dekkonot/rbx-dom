@@ -115,7 +115,7 @@ impl<R: io::Read> XmlEventReader<R> {
         // checker. For a detailed answer, see the Rustnomicon:
         // https://doc.rust-lang.org/nomicon/lifetime-mismatch.html
         //
-        // The long story short is that a mutable reference out lives the
+        // The long story short is that a mutable reference outlives the
         // return of this function, so Rust doesn't know it is sound. This was
         // true when this function was originally implemented (2019-04-30) and
         // is still true now (2023-10-13). We know it is though, so we can
