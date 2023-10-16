@@ -30,7 +30,7 @@ impl XmlType for ProtectedStringDummy {
     }
 
     fn read_xml<R: Read>(reader: &mut XmlEventReader<R>) -> Result<Self, DecodeError> {
-        Ok(ProtectedStringDummy(reader.read_characters()?))
+        Ok(ProtectedStringDummy(reader.read_characters_untrimmed()?))
     }
 }
 

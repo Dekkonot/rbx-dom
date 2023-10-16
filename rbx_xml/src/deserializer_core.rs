@@ -197,6 +197,13 @@ impl<R: io::Read> XmlEventReader<R> {
         Ok(buffer)
     }
 
+    pub fn read_characters_untrimmed(&mut self) -> Result<String, DecodeError> {
+        self.reader.trim_text(false);
+        let ret = self.read_characters();
+        self.reader.trim_text(true);
+        ret
+    }
+
     pub fn read_base64_characters(&mut self) -> Result<Vec<u8>, DecodeError> {
         let contents: String = self
             .read_characters()?
