@@ -65,6 +65,24 @@ impl WeakDom {
         self.instances.get_mut(&referent)
     }
 
+    /// Returns an iterator over the descendants of the entire `WeakDom`,
+    /// including the root of the DOM.
+    pub fn descendants_root(&self) -> Descendants {
+        Descendants {
+            dom: self,
+            queue: [self.root_ref].into(),
+        }
+    }
+
+    /// Returns an iterator over the descendants of a portion of a `WeakDom`,
+    /// starting with (and including) `top_ref`.
+    pub fn descendants(&self, top_ref: Ref) -> Descendants {
+        Descendants {
+            dom: self,
+            queue: [top_ref].into(),
+        }
+    }
+
     /// Insert a new instance into the DOM with the given parent. The parent is allowed to
     /// be the none Ref.
     ///
@@ -346,6 +364,25 @@ impl WeakDom {
     }
 }
 
+/// An iterator over the descendants of a `WeakDom`.
+pub struct Descendants<'a> {
+    dom: &'a WeakDom,
+    queue: VecDeque<Ref>,
+}
+
+impl<'a> Iterator for Descendants<'a> {
+    type Item = &'a Instance;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.queue.pop_front()?;
+        let inst = self.dom.get_by_ref(next)?;
+        self.queue.extend(inst.children());
+
+        Some(inst)
+    }
+}
+
 impl Default for WeakDom {
     fn default() -> WeakDom {
         WeakDom {
@@ -431,6 +468,8 @@ impl CloneContext {
 
 #[cfg(test)]
 mod test {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use super::*;
 
     use crate::DomViewer;
@@ -726,5 +765,42 @@ mod test {
         } else {
             panic!("UniqueId property must exist and contain a Variant::UniqueId")
         };
+    }
+
+    #[test]
+    fn descendants() {
+        fn char(str: &str, n: usize) -> char {
+            str.chars()
+                .nth(n)
+                .unwrap_or_else(|| panic!("character {} of {} is not real", n, str))
+        }
+
+        let mut base = InstanceBuilder::new("Folder");
+        base.set_name("0");
+        for n in 0..=5 {
+            let mut builder = InstanceBuilder::new("Folder").with_name(n.to_string());
+            for i in 0..n {
+                builder.add_child(InstanceBuilder::new("Folder").with_name(format!("{n}_{i}")))
+            }
+            base.add_child(builder);
+        }
+        let dom = WeakDom::new(base);
+
+        // This has to be ordered, so we can't just use a HashMap.
+        let mut top_level_visited: BTreeMap<char, BTreeSet<char>> = BTreeMap::new();
+        for inst in dom.descendants_root() {
+            let top_level = char(&inst.name, 0);
+            if inst.name.len() != 1 {
+                let top_level_list = top_level_visited.get_mut(&top_level).unwrap();
+                let child_n = char(&inst.name, 2);
+                if !top_level_list.insert(child_n) {
+                    panic!("duplicate child {}", inst.name);
+                }
+            } else {
+                top_level_visited.entry(top_level).or_default();
+            }
+        }
+
+        insta::assert_yaml_snapshot!(top_level_visited)
     }
 }
