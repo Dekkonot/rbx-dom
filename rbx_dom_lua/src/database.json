@@ -1,9 +1,9 @@
 {
   "Version": [
     0,
-    638,
-    1,
-    6380615
+    639,
+    0,
+    6390692
   ],
   "Classes": {
     "Accessory": {
@@ -13775,9 +13775,7 @@
     },
     "ColorGradingEffect": {
       "Name": "ColorGradingEffect",
-      "Tags": [
-        "NotBrowsable"
-      ],
+      "Tags": [],
       "Superclass": "PostEffect",
       "Properties": {
         "TonemapperPreset": {
@@ -31727,7 +31725,11 @@
           "Bool": true
         },
         "Attributes": {
-          "Attributes": {}
+          "Attributes": {
+            "RBX_OriginalTechnologyOnFileLoad": {
+              "Int32": 2
+            }
+          }
         },
         "Brightness": {
           "Float32": 1.0
@@ -78117,8 +78119,9 @@
         "DOS": 16,
         "IOS": 2,
         "Linux": 13,
+        "MetaOS": 20,
         "NX": 9,
-        "None": 20,
+        "None": 21,
         "OSX": 1,
         "Ouya": 10,
         "PS3": 6,
@@ -79664,6 +79667,16 @@
       "items": {
         "Disabled": 0,
         "Transparent": 1
+      }
+    },
+    "VRDeviceType": {
+      "name": "VRDeviceType",
+      "items": {
+        "HTCVive": 2,
+        "OculusQuest": 4,
+        "OculusRift": 1,
+        "Unknown": 0,
+        "ValveIndex": 3
       }
     },
     "VRLaserPointerMode": {

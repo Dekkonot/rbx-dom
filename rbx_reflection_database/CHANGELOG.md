@@ -1,7 +1,7 @@
 # rbx\_reflection_database Changelog
 
 ## Unreleased Changes
-* Update to Roblox version 638.
+* Update to Roblox version 639.
 * `Instance.UniqueId`, `Instance.HistoryId`, and `LuaSourceContainer.ScriptGuid` are marked as `Serializes` again ([#437])
 
 [#437]: https://github.com/rojo-rbx/rbx-dom/pull/437
