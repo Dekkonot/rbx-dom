@@ -3,16 +3,14 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     fmt,
     hash::{Hash, Hasher},
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, LazyLock, Mutex, Weak},
 };
 
 use blake3::Hash as Blake3Hash;
 
-lazy_static::lazy_static! {
-    static ref STRING_CACHE: Arc<Mutex<HashMap<Blake3Hash, Weak<Vec<u8>>>>> = {
-        Arc::new(Mutex::new(HashMap::new()))
-    };
-}
+type StringCache = Arc<Mutex<HashMap<Blake3Hash, Weak<Vec<u8>>>>>;
+
+static STRING_CACHE: LazyLock<StringCache> = LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 /// A version of `BinaryString` used for data that's commonly repeated.
 /// `rbx_types` automatically deduplicates data as it's loaded into

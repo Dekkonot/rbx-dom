@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use thiserror::Error;
 
@@ -7,7 +6,10 @@ use std::{
     fmt,
     num::ParseIntError,
     str::FromStr,
-    sync::atomic::{AtomicU32, Ordering},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        LazyLock,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -16,10 +18,9 @@ use crate::Error as CrateError;
 /// The `UniqueId` epoch (2021-01-01 00:00:00 GMT) in terms of time since the Unix epoch
 const EPOCH_AS_UNIX: u64 = 1_609_459_200;
 
-lazy_static! {
-    /// A `SystemTime` representing the `UniqueId` epoch.
-    pub static ref EPOCH: SystemTime = UNIX_EPOCH - Duration::from_secs(EPOCH_AS_UNIX);
-}
+/// A `SystemTime` representing the `UniqueId` epoch.
+pub static EPOCH: LazyLock<SystemTime> =
+    LazyLock::new(|| UNIX_EPOCH - Duration::from_secs(EPOCH_AS_UNIX));
 
 /// Represents an error that can occur when constructing a new `UniqueId`.
 #[derive(Debug, Error)]
