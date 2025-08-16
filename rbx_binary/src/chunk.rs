@@ -41,8 +41,7 @@ impl Chunk {
                 zstd::bulk::decompress(&compressed_data, header.len as usize)?
             } else {
                 log::trace!("LZ4 compression");
-                lz4_flex::block::decompress(&compressed_data, header.len as usize)
-                    .map_err(io::Error::other)?
+                lz4::block::decompress(&compressed_data, Some(header.len as i32))?
             }
         };
 
@@ -84,7 +83,7 @@ impl ChunkBuilder {
 
         match self.compression {
             CompressionType::Lz4 => {
-                let compressed = lz4_flex::block::compress(&self.buffer);
+                let compressed = lz4::block::compress(&self.buffer, None, false)?;
 
                 writer.write_le_u32(compressed.len() as u32)?;
                 writer.write_le_u32(self.buffer.len() as u32)?;
