@@ -11,12 +11,14 @@ use serde::Deserialize;
 pub struct Patches {
     change: HashMap<String, HashMap<String, PropertyChange>>,
     add: HashMap<String, HashMap<String, PropertyAdd>>,
+    always_write: HashMap<String, Vec<String>>,
 }
 
 impl Patches {
     pub fn load(dir: &Path) -> anyhow::Result<Self> {
         let mut change = HashMap::new();
         let mut add = HashMap::new();
+        let mut always_write = HashMap::new();
 
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -26,9 +28,14 @@ impl Patches {
 
             change.extend(patch.change);
             add.extend(patch.add);
+            always_write.extend(patch.always_write);
         }
 
-        Ok(Self { change, add })
+        Ok(Self {
+            change,
+            add,
+            always_write,
+        })
     }
 
     pub fn apply_pre_default<'db>(
@@ -227,6 +234,27 @@ impl Patches {
             }
         }
 
+        for (class_name, class_injections) in &self.always_write {
+            for prop_name in class_injections {
+                let class = database
+                .classes
+                .get_mut(class_name.as_str())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Class {class_name} referenced in always_write patch does not exist in database"
+                    )
+                })?;
+
+                if !class.default_properties.contains_key(prop_name.as_str()) {
+                    bail!("Property {class_name}.{prop_name} referenced in always_write patch does not have default value in database")
+                }
+
+                if !class.always_written_properties.insert(prop_name.as_str()) {
+                    bail!("Property {class_name}.{prop_name} referenced in always_write patch is referenced more than once")
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -238,6 +266,8 @@ struct Patch {
     change: HashMap<String, HashMap<String, PropertyChange>>,
     #[serde(default)]
     add: HashMap<String, HashMap<String, PropertyAdd>>,
+    #[serde(default)]
+    always_write: HashMap<String, Vec<String>>,
 }
 
 #[derive(Deserialize)]

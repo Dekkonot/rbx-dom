@@ -100,6 +100,23 @@ impl<'a> ReflectionDatabase<'a> {
             }
         }
     }
+
+    /// Returns a set of the name of all the properties that should always be
+    /// written for the given class.
+    ///
+    /// The returned set traverses all superclasses of the provided class.
+    pub fn get_always_written_properties(
+        &'a self,
+        class: &'a ClassDescriptor<'a>,
+    ) -> HashSet<&'a str> {
+        let mut values = HashSet::new();
+
+        for superclass in self.superclasses_iter(class) {
+            values.extend(&superclass.always_written_properties);
+        }
+
+        values
+    }
 }
 
 /// Describes a class of Instance, its properties, and its relation to other
@@ -128,6 +145,11 @@ pub struct ClassDescriptor<'a> {
     /// defined in serialization or freshly inserted with `Instance.new`.
     #[serde(serialize_with = "crate::serde_util::ordered_map")]
     pub default_properties: HashMap<&'a str, Variant>,
+
+    /// A set of properties that should always be written for this class for
+    /// correctness.
+    #[serde(default, serialize_with = "crate::serde_util::ordered_set")]
+    pub always_written_properties: HashSet<&'a str>,
 }
 
 impl<'a> ClassDescriptor<'a> {
@@ -139,6 +161,7 @@ impl<'a> ClassDescriptor<'a> {
             superclass: None,
             properties: HashMap::new(),
             default_properties: HashMap::new(),
+            always_written_properties: HashSet::new(),
         }
     }
 }
