@@ -43433,7 +43433,9 @@
           "UniqueId": "00000000000000000000000000000000"
         }
       },
-      "AlwaysWrittenProperties": []
+      "AlwaysWrittenProperties": [
+        "Attributes"
+      ]
     },
     "LineForce": {
       "Name": "LineForce",
@@ -48526,7 +48528,9 @@
           "OptionalCFrame": null
         }
       },
-      "AlwaysWrittenProperties": []
+      "AlwaysWrittenProperties": [
+        "NeedsPivotMigration"
+      ]
     },
     "ModerationService": {
       "Name": "ModerationService",

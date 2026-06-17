@@ -3,3 +3,6 @@ Change:
     ClockTime:
       Serialization:
         Type: Serializes
+AlwaysWrite:
+  Lighting:
+    - Attributes
