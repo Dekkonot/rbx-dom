@@ -11,7 +11,7 @@ expression: encoded_text
         <G>0.27450982</G>
         <B>0.27450982</B>
       </Color3>
-      <BinaryString name="AttributesSerialize">AQAAACAAAABSQlhfT3JpZ2luYWxUZWNobm9sb2d5T25GaWxlTG9hZAQDAAAA</BinaryString>
+      <BinaryString name="AttributesSerialize">BQAAABQAAABSQlhfQmFja3VwQnJpZ2h0bmVzcwUAAIA/HgAAAFJCWF9CYWNrdXBFeHBvc3VyZUNvbXBlbnNhdGlvbgUAAAAAIQAAAFJCWF9MaWdodGluZ0NvbXBhdGliaWxpdHlNaWdyYXRlZAMBJgAAAFJCWF9MaWdodGluZ1RlY2hub2xvZ3lVbmlmaWVkTWlncmF0aW9uAwEgAAAAUkJYX09yaWdpbmFsVGVjaG5vbG9neU9uRmlsZUxvYWQEAwAAAA==</BinaryString>
       <float name="Brightness">3</float>
       <SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
       <Color3 name="ColorShift_Bottom">
