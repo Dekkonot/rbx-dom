@@ -39,18 +39,29 @@ pub struct GenerateSubcommand {
     /// Whether to serialize MessagePack in a human readable format. This has no effect on JSON.
     #[clap(long)]
     pub human_readable: bool,
+    /// If provided, indicates an API dump to use for generating the dump. If
+    /// omitted, a dump is generated from Studio.
+    #[clap(long)]
+    pub dump: Option<PathBuf>,
 }
 
 impl GenerateSubcommand {
     pub fn run(&self) -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
-        let api_dump_path = temp_dir.path().join("api-dump.json");
         let defaults_place_path = temp_dir.path().join("defaults-place.rbxlx");
 
-        DumpSubcommand {
-            output: api_dump_path.clone(),
-        }
-        .run()?;
+        let api_dump_path = if let Some(path) = &self.dump {
+            log::debug!("Using API dump provided at: {}", path.display());
+            path.clone()
+        } else {
+            log::debug!("Generating API dump from Studio");
+            let path = temp_dir.path().join("api-dump.json");
+            DumpSubcommand {
+                output: path.clone(),
+            }
+            .run()?;
+            path
+        };
 
         let contents = fs::read_to_string(&api_dump_path).context("Could not read API dump")?;
         let dump = serde_json::from_str(&contents).context("Invalid API dump")?;
