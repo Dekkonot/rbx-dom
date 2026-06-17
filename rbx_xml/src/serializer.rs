@@ -1,9 +1,9 @@
-use std::{collections::BTreeMap, io::Write};
+use std::{borrow::Cow, collections::BTreeMap, io::Write};
 
-use ahash::{HashMap, HashMapExt};
+use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
 use rbx_dom_weak::{
-    types::{Ref, SharedString, SharedStringHash, Variant},
-    WeakDom,
+    types::{Ref, SharedString, SharedStringHash, Tags, Variant, VariantType},
+    ustr, WeakDom,
 };
 use rbx_reflection::{PropertyKind, PropertySerialization, ReflectionDatabase};
 
@@ -28,8 +28,16 @@ pub fn encode_internal<W: Write>(
     writer.write(XmlWriteEvent::start_element("roblox").attr("version", "4"))?;
 
     let mut property_buffer = Vec::new();
+    let mut property_map = HashMap::new();
     for id in ids {
-        serialize_instance(&mut writer, &mut state, tree, *id, &mut property_buffer)?;
+        serialize_instance(
+            &mut writer,
+            &mut state,
+            tree,
+            *id,
+            &mut property_map,
+            &mut property_buffer,
+        )?;
     }
 
     serialize_shared_strings(&mut writer, &mut state)?;
@@ -160,12 +168,13 @@ impl<'db> EmitState<'db> {
 ///
 /// `property_buffer` is a Vec that can be reused between calls to
 /// serialize_instance to make sorting properties more efficient.
-fn serialize_instance<'dom, W: Write>(
+fn serialize_instance<'db: 'dom, 'dom, W: Write>(
     writer: &mut XmlEventWriter<W>,
-    state: &mut EmitState,
+    state: &mut EmitState<'db>,
     tree: &'dom WeakDom,
     id: Ref,
-    property_buffer: &mut Vec<(&'dom str, &'dom Variant)>,
+    property_map: &mut HashMap<&'dom str, Cow<'dom, Variant>>,
+    property_buffer: &mut Vec<(&'dom str, Cow<'dom, Variant>)>,
 ) -> Result<(), NewEncodeError> {
     let instance = tree.get_by_ref(id).unwrap();
     let mapped_id = state.map_id(id);
@@ -185,9 +194,89 @@ fn serialize_instance<'dom, W: Write>(
         &Variant::String(instance.name.clone()),
     )?;
 
+    // Because we may be inserting properties, we have to first move them into
+    // a map so that we know whether we're overwriting them...
+    property_map.extend(
+        instance
+            .properties
+            .iter()
+            .map(|(k, v)| (k.as_str(), Cow::Borrowed(v))),
+    );
+
+    // If we're using the database, we need to inject always-written properties
+    if state.options.use_reflection() {
+        let database = state.options.database;
+        let class_descriptor = database
+            .classes
+            .get(instance.class.as_str())
+            .ok_or_else(|| {
+                NewEncodeError::new(EncodeErrorKind::UnknownClass(instance.class.to_string()))
+            })?;
+
+        for property_name in database.get_always_written_properties(class_descriptor) {
+            // If there's no default value for the injected property,
+            // that's a database failure...
+            // But we probably don't want to fail serializing because of it.
+            let Some(default_value) =
+                database.find_default_property(class_descriptor, property_name)
+            else {
+                continue;
+            };
+            match instance.properties.get(&ustr(property_name)) {
+                None => {
+                    property_map.insert(property_name, Cow::Owned(default_value.clone()));
+                }
+                Some(Variant::Attributes(existing)) => match default_value {
+                    Variant::Attributes(default) => {
+                        let mut default = default.clone();
+                        for (key, value) in existing {
+                            default.insert(key.clone(), value.clone());
+                        }
+                        property_map.insert(property_name, Cow::Owned(default.into()));
+                    }
+                    _ => {
+                        return Err(NewEncodeError::new(
+                            EncodeErrorKind::UnableToMergeProperties {
+                                class_name: instance.class.to_string(),
+                                property_name: property_name.to_string(),
+                                actual_type: VariantType::Attributes,
+                                expected_type: default_value.ty(),
+                            },
+                        ))
+                    }
+                },
+                Some(Variant::Tags(existing)) => match default_value {
+                    Variant::Tags(default) => {
+                        // This is technically inefficient, but that's fine
+                        // because Tags being merged should be extremely rare.
+                        let mut tag_map: HashSet<&str> = HashSet::new();
+                        tag_map.extend(existing.iter());
+                        tag_map.extend(default.iter());
+                        let mut new_tags = Tags::new();
+                        for tag in tag_map {
+                            new_tags.push(tag)
+                        }
+                        property_map.insert(property_name, Cow::Owned(new_tags.into()));
+                    }
+                    _ => {
+                        return Err(NewEncodeError::new(
+                            EncodeErrorKind::UnableToMergeProperties {
+                                class_name: instance.class.to_string(),
+                                property_name: property_name.to_string(),
+                                actual_type: VariantType::Tags,
+                                expected_type: default_value.ty(),
+                            },
+                        ))
+                    }
+                },
+                Some(_) => continue,
+            }
+        }
+    }
+
     // Move references to our properties into property_buffer so we can sort
     // them and iterate them in order.
-    property_buffer.extend(instance.properties.iter().map(|(k, v)| (k.as_str(), v)));
+    property_buffer.extend(property_map.drain());
     property_buffer.sort_unstable_by_key(|(key, _)| *key);
 
     for (property_name, value) in property_buffer.drain(..) {
@@ -245,7 +334,7 @@ fn serialize_instance<'dom, W: Write>(
                     // We'll take this value as-is with no conversions on
                     // either the name or value.
 
-                    write_value_xml(writer, state, property_name, value)?;
+                    write_value_xml(writer, state, property_name, value.as_ref())?;
                 }
                 EncodePropertyBehavior::ErrorOnUnknown => {
                     return Err(writer.error(EncodeErrorKind::UnknownProperty {
@@ -260,7 +349,14 @@ fn serialize_instance<'dom, W: Write>(
     writer.write(XmlWriteEvent::end_element())?;
 
     for child_id in instance.children() {
-        serialize_instance(writer, state, tree, *child_id, property_buffer)?;
+        serialize_instance(
+            writer,
+            state,
+            tree,
+            *child_id,
+            property_map,
+            property_buffer,
+        )?;
     }
 
     writer.write(XmlWriteEvent::end_element())?;

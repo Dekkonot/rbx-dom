@@ -1,0 +1,54 @@
+---
+source: rbx_xml/src/tests/basic.rs
+expression: "std::str::from_utf8(&encoded).unwrap()"
+---
+<roblox version="4">
+  <Item class="Workspace" referent="0">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="NeedsPivotMigration">false</bool>
+    </Properties>
+    <Item class="Model" referent="1">
+      <Properties>
+        <string name="Name">Model</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+    <Item class="Actor" referent="2">
+      <Properties>
+        <string name="Name">Actor</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+    <Item class="Tool" referent="3">
+      <Properties>
+        <string name="Name">Tool</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+    <Item class="HopperBin" referent="4">
+      <Properties>
+        <string name="Name">HopperBin</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+    <Item class="Flag" referent="5">
+      <Properties>
+        <string name="Name">Flag</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+    <Item class="WorldModel" referent="6">
+      <Properties>
+        <string name="Name">WorldModel</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+    <Item class="Status" referent="7">
+      <Properties>
+        <string name="Name">Status</string>
+        <bool name="NeedsPivotMigration">false</bool>
+      </Properties>
+    </Item>
+  </Item>
+</roblox>

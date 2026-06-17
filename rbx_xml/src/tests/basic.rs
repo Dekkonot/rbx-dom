@@ -430,3 +430,82 @@ fn enum_item_to_enum() {
 
     assert_eq!(prop_type, VariantType::Enum);
 }
+
+#[test]
+fn inject_properties() {
+    const MODEL_CLASSES: &[&str] = &[
+        "Model",
+        "Actor",
+        "Tool",
+        "HopperBin",
+        "Flag",
+        "WorldModel",
+        "Status",
+    ];
+    let children = MODEL_CLASSES
+        .iter()
+        .map(|class| InstanceBuilder::new(ustr(class)));
+    let tree = WeakDom::new(InstanceBuilder::new("Workspace").with_children(children));
+
+    let mut encoded = Vec::new();
+    crate::to_writer_default(&mut encoded, &tree, &[tree.root_ref()]).unwrap();
+    insta::assert_snapshot!(std::str::from_utf8(&encoded).unwrap());
+}
+
+#[test]
+fn merge_injected_properties() {
+    let mut attrs = Attributes::new();
+    attrs.insert("Obvious Test Case".into(), true.into());
+    let tree = WeakDom::new(
+        InstanceBuilder::new("Lighting").with_property("Attributes", Variant::Attributes(attrs)),
+    );
+
+    let mut encoded = Vec::new();
+    crate::to_writer_default(&mut encoded, &tree, &[tree.root_ref()]).unwrap();
+
+    let decoded = crate::from_reader_default(encoded.as_slice()).unwrap();
+    let lighting = decoded.get_by_ref(decoded.root().children()[0]).unwrap();
+    let Variant::Attributes(mut decoded_attributes) = lighting
+        .properties
+        .get(&ustr("Attributes"))
+        .unwrap()
+        .clone()
+    else {
+        panic!("Decoded Lighting had an Attributes property that wasn't a Variant::Attributes")
+    };
+
+    let default_values = rbx_reflection_database::get()
+        .unwrap()
+        .classes
+        .get("Lighting")
+        .and_then(|descriptor| descriptor.default_properties.get("Attributes"))
+        .unwrap();
+    let Variant::Attributes(default_values) = default_values else {
+        panic!("Default value of Lighting.Attributes wasn't a Variant::Attributes")
+    };
+
+    assert_eq!(decoded_attributes.len(), default_values.len() + 1);
+    for (default_key, default_value) in default_values {
+        match decoded_attributes.remove(default_key.as_str()) {
+            Some(decoded_value) => {
+                assert_eq!(
+                    &decoded_value, default_value,
+                    "attribute {} did not get injected properly (expected {:?}, got {:?}",
+                    default_key, default_value, decoded_value
+                )
+            }
+            None => panic!(
+                "attribute {} did not get injected properly (did not exist in decoded file)",
+                default_key
+            ),
+        }
+    }
+    match decoded_attributes.remove("Obvious Test Case") {
+        Some(decoded_value) => {
+            assert_eq!(decoded_value, Variant::Bool(true))
+        }
+        None => panic!("attribute 'Obvious Test Case' did not roundtrip properly"),
+    }
+
+    assert_eq!(decoded_attributes.len(), 0)
+}

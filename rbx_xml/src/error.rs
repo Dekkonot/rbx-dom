@@ -226,6 +226,13 @@ pub(crate) enum EncodeErrorKind {
         message: String,
     },
     UnsupportedFontStyle(rbx_dom_weak::types::FontStyle),
+    UnknownClass(String),
+    UnableToMergeProperties {
+        class_name: String,
+        property_name: String,
+        actual_type: VariantType,
+        expected_type: VariantType,
+    },
 }
 
 impl fmt::Display for EncodeErrorKind {
@@ -255,7 +262,14 @@ impl fmt::Display for EncodeErrorKind {
                 "Property {class_name}.{property_name} is expected to be of type {expected_type:?}, but it was of type {actual_type:?} \
                  When trying to convert the value, this error occured: {message}"
             ),
-            UnsupportedFontStyle(style) => write!(output, "Cannot serialize FontStyle of type {style:?}")
+            UnsupportedFontStyle(style) => write!(output, "Cannot serialize FontStyle of type {style:?}"),
+            UnknownClass(class_name) => write!(output, "Class {class_name} is unknown"),
+            UnableToMergeProperties {
+                class_name, property_name, actual_type, expected_type,
+            } => write!(
+                output,
+                "Cannot inject expected default value for {class_name}.{property_name}\
+                This is because there was already a property of type {actual_type:?} but it was expected to be {expected_type:?}")
         }
     }
 }
@@ -272,7 +286,9 @@ impl std::error::Error for EncodeErrorKind {
             UnknownProperty { .. }
             | UnsupportedPropertyType(_)
             | UnsupportedPropertyConversion { .. }
-            | UnsupportedFontStyle(_) => None,
+            | UnsupportedFontStyle(_)
+            | UnknownClass(_)
+            | UnableToMergeProperties { .. } => None,
         }
     }
 }
