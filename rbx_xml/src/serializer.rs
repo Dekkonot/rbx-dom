@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap, io::Write};
 use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
 use rbx_dom_weak::{
     types::{Ref, SharedString, SharedStringHash, Tags, Variant, VariantType},
-    ustr, WeakDom,
+    ustr, Instance, WeakDom,
 };
 use rbx_reflection::{PropertyKind, PropertySerialization, ReflectionDatabase};
 
@@ -164,6 +164,79 @@ impl<'db> EmitState<'db> {
     }
 }
 
+fn inject_always_written<'dom, 'db: 'dom>(
+    state: &mut EmitState<'db>,
+    property_map: &mut HashMap<&'dom str, Cow<'dom, Variant>>,
+    instance: &Instance,
+) -> Result<(), NewEncodeError> {
+    let database = state.options.database;
+    let Some(class_descriptor) = database.classes.get(instance.class.as_str()) else {
+        // We don't want to fail when we encounter an unknown class!
+        return Ok(());
+    };
+
+    for property_name in database.get_always_written_properties(class_descriptor) {
+        // If there's no default value for the injected property,
+        // that's a database failure...
+        // But we probably don't want to fail serializing because of it.
+        let Some(default_value) = database.find_default_property(class_descriptor, property_name)
+        else {
+            continue;
+        };
+        match instance.properties.get(&ustr(property_name)) {
+            None => {
+                property_map.insert(property_name, Cow::Owned(default_value.clone()));
+            }
+            Some(Variant::Attributes(existing)) => match default_value {
+                Variant::Attributes(default) => {
+                    let mut default = default.clone();
+                    for (key, value) in existing {
+                        default.insert(key.clone(), value.clone());
+                    }
+                    property_map.insert(property_name, Cow::Owned(default.into()));
+                }
+                _ => {
+                    return Err(NewEncodeError::new(
+                        EncodeErrorKind::UnableToMergeProperties {
+                            class_name: instance.class.to_string(),
+                            property_name: property_name.to_string(),
+                            actual_type: VariantType::Attributes,
+                            expected_type: default_value.ty(),
+                        },
+                    ))
+                }
+            },
+            Some(Variant::Tags(existing)) => match default_value {
+                Variant::Tags(default) => {
+                    // This is technically inefficient, but that's fine
+                    // because Tags being merged should be extremely rare.
+                    let mut tag_map: HashSet<&str> = HashSet::new();
+                    tag_map.extend(existing.iter());
+                    tag_map.extend(default.iter());
+                    let mut new_tags = Tags::new();
+                    for tag in tag_map {
+                        new_tags.push(tag)
+                    }
+                    property_map.insert(property_name, Cow::Owned(new_tags.into()));
+                }
+                _ => {
+                    return Err(NewEncodeError::new(
+                        EncodeErrorKind::UnableToMergeProperties {
+                            class_name: instance.class.to_string(),
+                            property_name: property_name.to_string(),
+                            actual_type: VariantType::Tags,
+                            expected_type: default_value.ty(),
+                        },
+                    ))
+                }
+            },
+            Some(_) => continue,
+        }
+    }
+
+    Ok(())
+}
+
 /// Serialize a single instance.
 ///
 /// `property_buffer` is a Vec that can be reused between calls to
@@ -205,73 +278,7 @@ fn serialize_instance<'db: 'dom, 'dom, W: Write>(
 
     // If we're using the database, we need to inject always-written properties
     if state.options.use_reflection() {
-        let database = state.options.database;
-        let class_descriptor = database
-            .classes
-            .get(instance.class.as_str())
-            .ok_or_else(|| {
-                NewEncodeError::new(EncodeErrorKind::UnknownClass(instance.class.to_string()))
-            })?;
-
-        for property_name in database.get_always_written_properties(class_descriptor) {
-            // If there's no default value for the injected property,
-            // that's a database failure...
-            // But we probably don't want to fail serializing because of it.
-            let Some(default_value) =
-                database.find_default_property(class_descriptor, property_name)
-            else {
-                continue;
-            };
-            match instance.properties.get(&ustr(property_name)) {
-                None => {
-                    property_map.insert(property_name, Cow::Owned(default_value.clone()));
-                }
-                Some(Variant::Attributes(existing)) => match default_value {
-                    Variant::Attributes(default) => {
-                        let mut default = default.clone();
-                        for (key, value) in existing {
-                            default.insert(key.clone(), value.clone());
-                        }
-                        property_map.insert(property_name, Cow::Owned(default.into()));
-                    }
-                    _ => {
-                        return Err(NewEncodeError::new(
-                            EncodeErrorKind::UnableToMergeProperties {
-                                class_name: instance.class.to_string(),
-                                property_name: property_name.to_string(),
-                                actual_type: VariantType::Attributes,
-                                expected_type: default_value.ty(),
-                            },
-                        ))
-                    }
-                },
-                Some(Variant::Tags(existing)) => match default_value {
-                    Variant::Tags(default) => {
-                        // This is technically inefficient, but that's fine
-                        // because Tags being merged should be extremely rare.
-                        let mut tag_map: HashSet<&str> = HashSet::new();
-                        tag_map.extend(existing.iter());
-                        tag_map.extend(default.iter());
-                        let mut new_tags = Tags::new();
-                        for tag in tag_map {
-                            new_tags.push(tag)
-                        }
-                        property_map.insert(property_name, Cow::Owned(new_tags.into()));
-                    }
-                    _ => {
-                        return Err(NewEncodeError::new(
-                            EncodeErrorKind::UnableToMergeProperties {
-                                class_name: instance.class.to_string(),
-                                property_name: property_name.to_string(),
-                                actual_type: VariantType::Tags,
-                                expected_type: default_value.ty(),
-                            },
-                        ))
-                    }
-                },
-                Some(_) => continue,
-            }
-        }
+        inject_always_written(state, property_map, instance)?;
     }
 
     // Move references to our properties into property_buffer so we can sort

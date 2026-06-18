@@ -226,7 +226,6 @@ pub(crate) enum EncodeErrorKind {
         message: String,
     },
     UnsupportedFontStyle(rbx_dom_weak::types::FontStyle),
-    UnknownClass(String),
     UnableToMergeProperties {
         class_name: String,
         property_name: String,
@@ -263,7 +262,6 @@ impl fmt::Display for EncodeErrorKind {
                  When trying to convert the value, this error occured: {message}"
             ),
             UnsupportedFontStyle(style) => write!(output, "Cannot serialize FontStyle of type {style:?}"),
-            UnknownClass(class_name) => write!(output, "Class {class_name} is unknown"),
             UnableToMergeProperties {
                 class_name, property_name, actual_type, expected_type,
             } => write!(
@@ -287,7 +285,6 @@ impl std::error::Error for EncodeErrorKind {
             | UnsupportedPropertyType(_)
             | UnsupportedPropertyConversion { .. }
             | UnsupportedFontStyle(_)
-            | UnknownClass(_)
             | UnableToMergeProperties { .. } => None,
         }
     }
