@@ -1,6 +1,6 @@
 use std::io;
 
-use rbx_dom_weak::types::Ref;
+use rbx_dom_weak::types::{Ref, VariantType};
 use thiserror::Error;
 
 /// Represents an error that occurred during serialization.
@@ -59,4 +59,15 @@ pub(super) enum InnerError {
 
     #[error("The instance with referent {referent:?} was not present in the dom.")]
     InvalidInstanceId { referent: Ref },
+
+    #[error(
+        "Cannot inject the default value for {class_name}.{property_name}. \
+        This is because there was already a property of type {actual_type:?} but it was expected to be {expected_type:?} \
+        so they cannot be merged.")]
+    UnableToMergeProperties {
+        class_name: String,
+        property_name: String,
+        actual_type: VariantType,
+        expected_type: VariantType,
+    },
 }

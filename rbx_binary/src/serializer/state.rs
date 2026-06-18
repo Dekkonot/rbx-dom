@@ -4,7 +4,7 @@ use std::{
     io::Write,
 };
 
-use ahash::{HashMap, HashMapExt};
+use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
 use rbx_dom_weak::{
     types::{
         Attributes, Axes, BinaryString, BrickColor, CFrame, Color3, Color3uint8, ColorSequence,
@@ -67,6 +67,11 @@ pub(super) struct SerializerState<'dom, 'db, W> {
     /// A map of SharedStrings to where it is in the SSTR chunk. This is used
     /// for writing PROP chunks.
     shared_string_ids: HashMap<SharedString, u32>,
+
+    /// A buffer used to store properties when collecting them for `TypeInfo`s.
+    /// Used instead of `Instance.properties` because some classes require
+    /// properties to be injected for Roblox to read them correctly.
+    property_buffer: HashMap<Ustr, Cow<'dom, Variant>>,
 }
 
 #[derive(Debug, Clone)]
@@ -151,7 +156,7 @@ struct PropInfo<'dom> {
 
     /// References to logical property values.  May be collected from multiple
     /// property names like `BasePart.Size` and `BasePart.size`.
-    values: Vec<&'dom Variant>,
+    values: Vec<Cow<'dom, Variant>>,
 
     /// The default value for this property that should be used if any instances
     /// are missing this property.
@@ -184,11 +189,11 @@ impl<'dom> PropInfo<'dom> {
             );
         };
         self.values
-            .extend(core::iter::repeat_n(self.default_value, additional));
+            .extend(core::iter::repeat_n(self.default_value, additional).map(Cow::Borrowed));
     }
 
     /// Add this instance's value, unless this logical property already has one.
-    fn push_value_for_instance(&mut self, desired_len: usize, value: &'dom Variant) {
+    fn push_value_for_instance(&mut self, desired_len: usize, value: Cow<'dom, Variant>) {
         if self.values.len() > desired_len {
             // This property for this instance has already been assigned a value. This can
             // happen when this property is a migration target, and the instance has
@@ -526,6 +531,7 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
             type_infos: TypeInfos::new(serializer.database),
             shared_strings: Vec::new(),
             shared_string_ids: HashMap::new(),
+            property_buffer: HashMap::new(),
         }
     }
 
@@ -605,6 +611,7 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
             type_infos,
             shared_strings,
             shared_string_ids,
+            property_buffer,
             ..
         } = self;
 
@@ -639,13 +646,81 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
         // migrated properties.
         let mut deferred_migrations = Vec::new();
 
-        for (prop_name, prop_value) in &instance.properties {
+        property_buffer.extend(
+            instance
+                .properties
+                .iter()
+                .map(|(k, v)| (*k, Cow::Borrowed(v))),
+        );
+
+        // Some classes have properties that must be inserted for Roblox to
+        // read them correctly. We handle that here.
+        if let Some(class_descriptor) = type_info.class_descriptor {
+            for prop_name in database.get_always_written_properties(class_descriptor) {
+                let Some(default) = database.find_default_property(class_descriptor, prop_name)
+                else {
+                    // If there's no default value for the injected property,
+                    // that's a database failure...
+                    // But we probably don't want to fail serializing because of it.
+                    continue;
+                };
+                let prop_name = Ustr::from(prop_name);
+                match (default, property_buffer.get(&prop_name).map(Cow::as_ref)) {
+                    (Variant::Attributes(default), Some(Variant::Attributes(existing))) => {
+                        let mut new = default.clone();
+                        // We want user-defined attributes to win, so we don't
+                        // override them here.
+                        for (name, value) in existing {
+                            new.insert(name.clone(), value.clone());
+                        }
+                        property_buffer.insert(prop_name, Cow::Owned(new.into()));
+                    }
+                    (_, Some(Variant::Attributes(_))) => {
+                        return Err(InnerError::UnableToMergeProperties {
+                            class_name: instance.class.to_string(),
+                            property_name: prop_name.to_string(),
+                            actual_type: default.ty(),
+                            expected_type: VariantType::Attributes,
+                        })
+                    }
+                    (Variant::Tags(default), Some(Variant::Tags(existing))) => {
+                        // This is technically inefficient, but that's fine
+                        // because Tags being merged should be extremely rare.
+                        let mut tag_map: HashSet<&str> = HashSet::new();
+                        tag_map.extend(existing.iter());
+                        tag_map.extend(default.iter());
+                        let mut new_tags = Tags::new();
+                        for tag in tag_map {
+                            new_tags.push(tag)
+                        }
+                        property_buffer.insert(prop_name, Cow::Owned(new_tags.into()));
+                    }
+                    (_, Some(Variant::Tags(_))) => {
+                        return Err(InnerError::UnableToMergeProperties {
+                            class_name: instance.class.to_string(),
+                            property_name: prop_name.to_string(),
+                            actual_type: default.ty(),
+                            expected_type: VariantType::Tags,
+                        })
+                    }
+                    (_, None) => {
+                        property_buffer.insert(prop_name, Cow::Owned(default.clone()));
+                    }
+                    (_, Some(_)) => {
+                        // A property by this name already exists, do nothing
+                        continue;
+                    }
+                }
+            }
+        }
+
+        for (prop_name, prop_value) in property_buffer.drain() {
             let resolved_property = type_info.resolve_visited_property(
                 &mut push_sstr,
                 database,
                 instance.class,
-                *prop_name,
-                prop_value,
+                prop_name,
+                &prop_value,
             )?;
 
             match resolved_property {
@@ -654,7 +729,7 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
                 }
                 PropInfoResolution::MigratesTo(prop_info_indices) => {
                     // Discover and track any shared strings we come across.
-                    push_sstr(prop_value);
+                    push_sstr(&prop_value);
 
                     // This property migrates to one or more other properties. Populate
                     // deferred_migrations with its indices and value, and wait until
@@ -668,7 +743,7 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
                     // and we may proceed
 
                     // Discover and track any shared strings we come across.
-                    push_sstr(prop_value);
+                    push_sstr(&prop_value);
 
                     let prop_info = &mut type_info.properties[prop_info_index];
                     prop_info.push_value_for_instance(desired_len, prop_value);
@@ -679,7 +754,9 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
         for (prop_info_indices, prop_value) in deferred_migrations {
             for prop_info_index in prop_info_indices {
                 let prop_info = &mut type_info.properties[prop_info_index];
-                prop_info.push_value_for_instance(desired_len, prop_value);
+                // Cloning `prop_value` should be very cheap under most
+                // circumstances, as it will just be a borrow.
+                prop_info.push_value_for_instance(desired_len, prop_value.clone());
             }
         }
 
@@ -941,11 +1018,11 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
                     let migrated_values: Vec<_> = prop_info
                         .values
                         .iter()
-                        .map(|&value| {
+                        .map(|value| {
                             property_migration
                                 .perform(value)
                                 // Take original if migration failed
-                                .map_or(Cow::Borrowed(value), Cow::Owned)
+                                .map_or_else(|_| Cow::Borrowed(value.as_ref()), Cow::Owned)
                         })
                         .collect();
 
@@ -964,7 +1041,7 @@ impl<'dom, 'db: 'dom, W: Write> SerializerState<'dom, 'db, W> {
                         id_to_referent,
                         shared_string_ids,
                         prop_info.prop_type,
-                        prop_info.values.iter().copied().enumerate(),
+                        prop_info.values.iter().map(Cow::as_ref).enumerate(),
                         type_mismatch,
                         invalid_value,
                     )?;
