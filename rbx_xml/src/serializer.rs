@@ -175,62 +175,62 @@ fn inject_always_written<'dom, 'db: 'dom>(
         return Ok(());
     };
 
-    for property_name in database.get_always_written_properties(class_descriptor) {
+    for prop_name in database.get_always_written_properties(class_descriptor) {
         // If there's no default value for the injected property,
         // that's a database failure...
         // But we probably don't want to fail serializing because of it.
-        let Some(default_value) = database.find_default_property(class_descriptor, property_name)
-        else {
+        let Some(default) = database.find_default_property(class_descriptor, prop_name) else {
             continue;
         };
-        match instance.properties.get(&ustr(property_name)) {
-            None => {
-                property_map.insert(property_name, Cow::Owned(default_value.clone()));
+        match (default, instance.properties.get(&ustr(prop_name))) {
+            (Variant::Attributes(default), Some(Variant::Attributes(existing))) => {
+                let mut new = default.clone();
+                // We want user-defined attributes to win, so we don't
+                // override them here.
+                for (name, value) in existing {
+                    new.insert(name.clone(), value.clone());
+                }
+                property_map.insert(prop_name, Cow::Owned(new.into()));
             }
-            Some(Variant::Attributes(existing)) => match default_value {
-                Variant::Attributes(default) => {
-                    let mut default = default.clone();
-                    for (key, value) in existing {
-                        default.insert(key.clone(), value.clone());
-                    }
-                    property_map.insert(property_name, Cow::Owned(default.into()));
+            (_, Some(Variant::Attributes(_))) => {
+                return Err(NewEncodeError::new(
+                    EncodeErrorKind::UnableToMergeProperties {
+                        class_name: instance.class.to_string(),
+                        property_name: prop_name.to_string(),
+                        actual_type: default.ty(),
+                        expected_type: VariantType::Attributes,
+                    },
+                ))
+            }
+            (Variant::Tags(default), Some(Variant::Tags(existing))) => {
+                // This is technically inefficient, but that's fine
+                // because Tags being merged should be extremely rare.
+                let mut tag_map: HashSet<&str> = HashSet::new();
+                tag_map.extend(existing.iter());
+                tag_map.extend(default.iter());
+                let mut new_tags = Tags::new();
+                for tag in tag_map {
+                    new_tags.push(tag)
                 }
-                _ => {
-                    return Err(NewEncodeError::new(
-                        EncodeErrorKind::UnableToMergeProperties {
-                            class_name: instance.class.to_string(),
-                            property_name: property_name.to_string(),
-                            actual_type: VariantType::Attributes,
-                            expected_type: default_value.ty(),
-                        },
-                    ))
-                }
-            },
-            Some(Variant::Tags(existing)) => match default_value {
-                Variant::Tags(default) => {
-                    // This is technically inefficient, but that's fine
-                    // because Tags being merged should be extremely rare.
-                    let mut tag_map: HashSet<&str> = HashSet::new();
-                    tag_map.extend(existing.iter());
-                    tag_map.extend(default.iter());
-                    let mut new_tags = Tags::new();
-                    for tag in tag_map {
-                        new_tags.push(tag)
-                    }
-                    property_map.insert(property_name, Cow::Owned(new_tags.into()));
-                }
-                _ => {
-                    return Err(NewEncodeError::new(
-                        EncodeErrorKind::UnableToMergeProperties {
-                            class_name: instance.class.to_string(),
-                            property_name: property_name.to_string(),
-                            actual_type: VariantType::Tags,
-                            expected_type: default_value.ty(),
-                        },
-                    ))
-                }
-            },
-            Some(_) => continue,
+                property_map.insert(prop_name, Cow::Owned(new_tags.into()));
+            }
+            (_, Some(Variant::Tags(_))) => {
+                return Err(NewEncodeError::new(
+                    EncodeErrorKind::UnableToMergeProperties {
+                        class_name: instance.class.to_string(),
+                        property_name: prop_name.to_string(),
+                        actual_type: default.ty(),
+                        expected_type: VariantType::Tags,
+                    },
+                ))
+            }
+            (_, None) => {
+                property_map.insert(prop_name, Cow::Owned(default.clone()));
+            }
+            (_, Some(_)) => {
+                // A property by this name already exists, do nothing
+                continue;
+            }
         }
     }
 
