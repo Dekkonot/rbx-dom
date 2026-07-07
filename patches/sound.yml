@@ -24,6 +24,6 @@ Change:
     SoundId:
       Serialization:
         Type: Migrate
-        To: AudioContent
+        To: SoundContent
         Migration: ContentIdToContent
 
