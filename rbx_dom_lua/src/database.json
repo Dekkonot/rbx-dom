@@ -7292,7 +7292,7 @@
             "Canonical": {
               "Serialization": {
                 "Migrate": {
-                  "To": "SoundContent",
+                  "To": "AudioContent",
                   "Migration": "ContentIdToContent"
                 }
               }
@@ -7504,6 +7504,9 @@
         "Attributes": {
           "Attributes": {}
         },
+        "AudioContent": {
+          "Content": "None"
+        },
         "AutoLoad": {
           "Bool": true
         },
@@ -7536,9 +7539,6 @@
         },
         "Sandboxed": {
           "Bool": false
-        },
-        "SoundContent": {
-          "Content": "None"
         },
         "SourceAssetId": {
           "Int64": -1
@@ -67894,7 +67894,7 @@
             "Canonical": {
               "Serialization": {
                 "Migrate": {
-                  "To": "SoundContent",
+                  "To": "AudioContent",
                   "Migration": "ContentIdToContent"
                 }
               }
@@ -68041,6 +68041,9 @@
         "Attributes": {
           "Attributes": {}
         },
+        "AudioContent": {
+          "Content": "None"
+        },
         "Capabilities": {
           "SecurityCapabilities": 0
         },
@@ -68085,9 +68088,6 @@
         },
         "Sandboxed": {
           "Bool": false
-        },
-        "SoundContent": {
-          "Content": "None"
         },
         "SourceAssetId": {
           "Int64": -1

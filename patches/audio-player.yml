@@ -3,5 +3,5 @@ Change:
     Asset:
       Serialization:
         Type: Migrate
-        To: SoundContent
+        To: AudioContent
         Migration: ContentIdToContent
