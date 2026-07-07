@@ -7292,7 +7292,7 @@
             "Canonical": {
               "Serialization": {
                 "Migrate": {
-                  "To": "AudioContent",
+                  "To": "SoundContent",
                   "Migration": "ContentIdToContent"
                 }
               }
@@ -7504,9 +7504,6 @@
         "Attributes": {
           "Attributes": {}
         },
-        "AudioContent": {
-          "Content": "None"
-        },
         "AutoLoad": {
           "Bool": true
         },
@@ -7539,6 +7536,9 @@
         },
         "Sandboxed": {
           "Bool": false
+        },
+        "SoundContent": {
+          "Content": "None"
         },
         "SourceAssetId": {
           "Int64": -1
@@ -17811,7 +17811,12 @@
           "Tags": [],
           "Kind": {
             "Canonical": {
-              "Serialization": "Serializes"
+              "Serialization": {
+                "Migrate": {
+                  "To": "OverlayTextureContent",
+                  "Migration": "Int64ToContent"
+                }
+              }
             }
           }
         }
@@ -17838,8 +17843,8 @@
         "MeshContent": {
           "Content": "None"
         },
-        "OverlayTextureId": {
-          "Int64": 0
+        "OverlayTextureContent": {
+          "Content": "None"
         },
         "Sandboxed": {
           "Bool": false
@@ -51051,7 +51056,12 @@
           "Tags": [],
           "Kind": {
             "Canonical": {
-              "Serialization": "Serializes"
+              "Serialization": {
+                "Migrate": {
+                  "To": "PantsTemplateContent",
+                  "Migration": "ContentIdToContent"
+                }
+              }
             }
           }
         },
@@ -51089,8 +51099,8 @@
         "HistoryId": {
           "UniqueId": "00000000000000000000000000000000"
         },
-        "PantsTemplate": {
-          "ContentId": ""
+        "PantsTemplateContent": {
+          "Content": "None"
         },
         "Sandboxed": {
           "Bool": false
@@ -57485,7 +57495,12 @@
           ],
           "Kind": {
             "Canonical": {
-              "Serialization": "DoesNotSerialize"
+              "Serialization": {
+                "Migrate": {
+                  "To": "IconContent",
+                  "Migration": "ContentIdToContent"
+                }
+              }
             }
           }
         },
@@ -65597,7 +65612,12 @@
           "Tags": [],
           "Kind": {
             "Canonical": {
-              "Serialization": "Serializes"
+              "Serialization": {
+                "Migrate": {
+                  "To": "ShirtTemplateContent",
+                  "Migration": "ContentIdToContent"
+                }
+              }
             }
           }
         },
@@ -65638,8 +65658,8 @@
         "Sandboxed": {
           "Bool": false
         },
-        "ShirtTemplate": {
-          "ContentId": ""
+        "ShirtTemplateContent": {
+          "Content": "None"
         },
         "SourceAssetId": {
           "Int64": -1
@@ -65679,7 +65699,12 @@
           "Tags": [],
           "Kind": {
             "Canonical": {
-              "Serialization": "Serializes"
+              "Serialization": {
+                "Migrate": {
+                  "To": "TextureContent",
+                  "Migration": "ContentIdToContent"
+                }
+              }
             }
           }
         },
@@ -65714,9 +65739,6 @@
             1.0
           ]
         },
-        "Graphic": {
-          "ContentId": ""
-        },
         "HistoryId": {
           "UniqueId": "00000000000000000000000000000000"
         },
@@ -65728,6 +65750,9 @@
         },
         "Tags": {
           "Tags": []
+        },
+        "TextureContent": {
+          "Content": "None"
         },
         "UniqueId": {
           "UniqueId": "00000000000000000000000000000000"
@@ -67869,7 +67894,7 @@
             "Canonical": {
               "Serialization": {
                 "Migrate": {
-                  "To": "AudioContent",
+                  "To": "SoundContent",
                   "Migration": "ContentIdToContent"
                 }
               }
@@ -68016,9 +68041,6 @@
         "Attributes": {
           "Attributes": {}
         },
-        "AudioContent": {
-          "Content": "None"
-        },
         "Capabilities": {
           "SecurityCapabilities": 0
         },
@@ -68063,6 +68085,9 @@
         },
         "Sandboxed": {
           "Bool": false
+        },
+        "SoundContent": {
+          "Content": "None"
         },
         "SourceAssetId": {
           "Int64": -1
