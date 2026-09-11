@@ -3456,12 +3456,6 @@ chunks:
         - 0
   - Prop:
       type_id: 20
-      prop_name: InputSink
-      prop_type: Enum
-      values:
-        - 0
-  - Prop:
-      type_id: 20
       prop_name: Interactable
       prop_type: Bool
       values:

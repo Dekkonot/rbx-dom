@@ -959,7 +959,6 @@ expression: encoded_text
       <token name="ChatVersion">1</token>
       <bool name="CreateDefaultCommands">true</bool>
       <bool name="CreateDefaultTextChannels">true</bool>
-      <token name="EnableProtectedChat">0</token>
       <bool name="HasSeenDeprecationDialog">false</bool>
       <UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
       <bool name="IsLegacyChatDisabled">true</bool>
@@ -1179,7 +1178,6 @@ expression: encoded_text
             <Y>0</Y>
           </Vector2>
           <float name="ImageTransparency">0</float>
-          <token name="InputSink">0</token>
           <bool name="Interactable">true</bool>
           <int name="LayoutOrder">0</int>
           <Ref name="NextSelectionDown">null</Ref>
@@ -1783,7 +1781,6 @@ expression: encoded_text
           <bool name="EnableRunning">true</bool>
           <bool name="EnableSitting">true</bool>
           <bool name="EnableSprinting">true</bool>
-          <bool name="EnableStrafing">true</bool>
           <bool name="EnableSwimming">true</bool>
           <UniqueId name="HistoryId">00000000000000000000000000000000</UniqueId>
           <bool name="DefinesCapabilities">false</bool>

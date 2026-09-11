@@ -1540,8 +1540,6 @@ expression: "DomViewer::new().view_children(&decoded)"
       Bool: true
     CreateDefaultTextChannels:
       Bool: true
-    EnableProtectedChat:
-      Enum: 0
     HasSeenDeprecationDialog:
       Bool: false
     HistoryId:
@@ -1847,8 +1845,6 @@ expression: "DomViewer::new().view_children(&decoded)"
                 - 0
             ImageTransparency:
               Float32: 0
-            InputSink:
-              Enum: 0
             Interactable:
               Bool: true
             LayoutOrder:
@@ -2808,8 +2804,6 @@ expression: "DomViewer::new().view_children(&decoded)"
             EnableSitting:
               Bool: true
             EnableSprinting:
-              Bool: true
-            EnableStrafing:
               Bool: true
             EnableSwimming:
               Bool: true
